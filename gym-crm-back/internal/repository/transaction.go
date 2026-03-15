@@ -1,0 +1,148 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/gym-crm/gym-crm-back/internal/models"
+	"github.com/jmoiron/sqlx"
+)
+
+type TransactionRepository interface {
+	Deposit(ctx context.Context, clientID int, amount float64, description string) (*models.Transaction, error)
+	Payment(ctx context.Context, clientID int, amount float64, description string, tariffRecordID int) (*models.Transaction, error)
+	ListByClient(ctx context.Context, clientID int) ([]models.Transaction, error)
+	GetFinanceStats(ctx context.Context) (*models.FinanceStats, error)
+}
+
+type transactionRepo struct{ db *sqlx.DB }
+
+func NewTransactionRepository(db *sqlx.DB) TransactionRepository {
+	return &transactionRepo{db}
+}
+
+func (r *transactionRepo) Deposit(ctx context.Context, clientID int, amount float64, description string) (*models.Transaction, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE clients SET balance = balance + $1 WHERE id = $2",
+		amount, clientID,
+	); err != nil {
+		return nil, fmt.Errorf("update balance: %w", err)
+	}
+
+	var t models.Transaction
+	desc := &description
+	if description == "" {
+		desc = nil
+	}
+	if err := tx.QueryRowxContext(ctx,
+		`INSERT INTO transactions(client_id, type, amount, description)
+		 VALUES($1,'deposit',$2,$3) RETURNING *`,
+		clientID, amount, desc,
+	).StructScan(&t); err != nil {
+		return nil, fmt.Errorf("insert transaction: %w", err)
+	}
+
+	return &t, tx.Commit()
+}
+
+func (r *transactionRepo) Payment(ctx context.Context, clientID int, amount float64, description string, tariffRecordID int) (*models.Transaction, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Check sufficient balance
+	var balance float64
+	if err := tx.QueryRowContext(ctx,
+		"SELECT balance FROM clients WHERE id=$1 FOR UPDATE",
+		clientID,
+	).Scan(&balance); err != nil {
+		return nil, fmt.Errorf("get balance: %w", err)
+	}
+	if balance < amount {
+		return nil, fmt.Errorf("insufficient balance: %.2f < %.2f", balance, amount)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE clients SET balance = balance - $1 WHERE id = $2",
+		amount, clientID,
+	); err != nil {
+		return nil, fmt.Errorf("update balance: %w", err)
+	}
+
+	var t models.Transaction
+	desc := &description
+	if description == "" {
+		desc = nil
+	}
+	if err := tx.QueryRowxContext(ctx,
+		`INSERT INTO transactions(client_id, type, amount, description, client_tariff_id)
+		 VALUES($1,'payment',$2,$3,$4) RETURNING *`,
+		clientID, amount, desc, tariffRecordID,
+	).StructScan(&t); err != nil {
+		return nil, fmt.Errorf("insert transaction: %w", err)
+	}
+
+	return &t, tx.Commit()
+}
+
+func (r *transactionRepo) ListByClient(ctx context.Context, clientID int) ([]models.Transaction, error) {
+	var ts []models.Transaction
+	err := r.db.SelectContext(ctx, &ts,
+		`SELECT * FROM transactions WHERE client_id=$1 ORDER BY created_at DESC`,
+		clientID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+	return ts, nil
+}
+
+func (r *transactionRepo) GetFinanceStats(ctx context.Context) (*models.FinanceStats, error) {
+	var stats models.FinanceStats
+
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(amount),0) FROM transactions WHERE type='deposit'`,
+	).Scan(&stats.TotalRevenue); err != nil {
+		return nil, fmt.Errorf("total revenue: %w", err)
+	}
+
+	if err := r.db.SelectContext(ctx, &stats.MonthlyRevenue, `
+		SELECT TO_CHAR(created_at,'YYYY-MM') AS month, COALESCE(SUM(amount),0) AS revenue
+		FROM transactions
+		WHERE type='deposit'
+		GROUP BY month
+		ORDER BY month DESC
+		LIMIT 12
+	`); err != nil {
+		return nil, fmt.Errorf("monthly revenue: %w", err)
+	}
+
+	if err := r.db.SelectContext(ctx, &stats.TopTariffs, `
+		SELECT t.name AS tariff_name, COUNT(*) AS count, COALESCE(SUM(tr.amount),0) AS revenue
+		FROM transactions tr
+		JOIN client_tariffs ct ON ct.id = tr.client_tariff_id
+		JOIN tariffs t ON t.id = ct.tariff_id
+		WHERE tr.type='payment'
+		GROUP BY t.name
+		ORDER BY revenue DESC
+		LIMIT 10
+	`); err != nil {
+		return nil, fmt.Errorf("top tariffs: %w", err)
+	}
+
+	if err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*), COUNT(*) FILTER (WHERE is_active) FROM clients`,
+	).Scan(&stats.TotalClients, &stats.ActiveClients); err != nil {
+		return nil, fmt.Errorf("client counts: %w", err)
+	}
+
+	return &stats, nil
+}
