@@ -15,7 +15,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import { DirectionBadge } from '../components/DirectionBadge'
 import { PhotoUpload } from '../components/PhotoUpload'
 import { Spinner } from '../components/ui/spinner'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 export function ClientDetail() {
@@ -89,6 +89,10 @@ export function ClientDetail() {
     },
   })
 
+  const assignError = assignMutation.error
+    ? (assignMutation.error as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'Не удалось назначить тариф'
+    : null
+
   const depositMutation = useMutation({
     mutationFn: () => clientsApi.deposit(clientId, { amount: Number(depositAmount), description: depositDesc || undefined }),
     onSuccess: () => {
@@ -97,6 +101,14 @@ export function ClientDetail() {
       setShowDeposit(false)
       setDepositAmount('')
       setDepositDesc('')
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => clientsApi.delete(clientId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      navigate('/clients')
     },
   })
 
@@ -148,6 +160,18 @@ export function ClientDetail() {
                     disabled={blockMutation.isPending}
                   >
                     {client.is_active ? 'Заблокировать' : 'Разблокировать'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm(`Удалить клиента "${client.full_name}"? Это действие необратимо.`)) {
+                        deleteMutation.mutate()
+                      }
+                    }}
+                    disabled={deleteMutation.isPending}
+                  >
+                    <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
@@ -334,7 +358,7 @@ export function ClientDetail() {
       </Dialog>
 
       {/* Assign Tariff Dialog */}
-      <Dialog open={showAssign} onClose={() => setShowAssign(false)}>
+      <Dialog open={showAssign} onClose={() => { setShowAssign(false); assignMutation.reset() }}>
         <div className="w-[420px]">
           <DialogHeader>
             <DialogTitle>Назначить тариф</DialogTitle>
@@ -380,10 +404,13 @@ export function ClientDetail() {
                   </span> с баланса клиента
                 </p>
               )}
+              {assignError && (
+                <p className="text-sm text-destructive">{assignError}</p>
+              )}
             </form>
           </DialogContent>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAssign(false)}>Отмена</Button>
+            <Button variant="outline" onClick={() => { setShowAssign(false); assignMutation.reset() }}>Отмена</Button>
             <Button type="submit" form="assign-tariff-form" disabled={assignMutation.isPending}>
               {assignMutation.isPending ? 'Назначение...' : 'Назначить'}
             </Button>

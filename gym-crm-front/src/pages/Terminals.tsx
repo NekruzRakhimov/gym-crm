@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/dialog'
 import { DirectionBadge } from '../components/DirectionBadge'
 import { Spinner } from '../components/ui/spinner'
-import { Plus, RefreshCw, DoorOpen, Wifi, ShieldCheck } from 'lucide-react'
+import { Plus, RefreshCw, DoorOpen, Wifi, ShieldCheck, Pencil } from 'lucide-react'
 
 const emptyForm: CreateTerminalInput = { name: '', ip: '', port: 80, username: 'admin', password: '', direction: 'entry' }
 
@@ -33,6 +33,8 @@ export function Terminals() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<CreateTerminalInput>(emptyForm)
+  const [editingTerminal, setEditingTerminal] = useState<Terminal | null>(null)
+  const [editForm, setEditForm] = useState<CreateTerminalInput>(emptyForm)
 
   const { data: terminals, isLoading } = useQuery({
     queryKey: ['terminals'],
@@ -42,6 +44,11 @@ export function Terminals() {
   const createMutation = useMutation({
     mutationFn: terminalsApi.create,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['terminals'] }); setShowForm(false); setForm(emptyForm) },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CreateTerminalInput }) => terminalsApi.update(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['terminals'] }); setEditingTerminal(null) },
   })
 
   const openDoorMutation = useMutation({
@@ -88,7 +95,15 @@ export function Terminals() {
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <CardTitle className="text-base">{t.name}</CardTitle>
-                  <TerminalStatus terminalId={t.id} />
+                  <div className="flex items-center gap-2">
+                    <TerminalStatus terminalId={t.id} />
+                    <button
+                      onClick={() => { setEditingTerminal(t); setEditForm({ name: t.name, ip: t.ip, port: t.port, username: t.username, password: '', direction: t.direction }) }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
                   <DirectionBadge direction={t.direction} />
@@ -166,6 +181,61 @@ export function Terminals() {
           </DialogContent>
           <DialogFooter>
             <Button onClick={() => setRemoteVerifyInfo(null)}>Понятно</Button>
+          </DialogFooter>
+        </div>
+      </Dialog>
+
+      <Dialog open={!!editingTerminal} onClose={() => setEditingTerminal(null)}>
+        <div className="w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Редактировать терминал</DialogTitle>
+          </DialogHeader>
+          <DialogContent>
+            <form
+              id="edit-terminal-form"
+              className="space-y-4"
+              onSubmit={(e) => { e.preventDefault(); updateMutation.mutate({ id: editingTerminal!.id, data: editForm }) }}
+            >
+              <div className="space-y-2">
+                <Label>Название *</Label>
+                <Input value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} required />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2 space-y-2">
+                  <Label>IP-адрес *</Label>
+                  <Input value={editForm.ip} onChange={(e) => setEditForm(f => ({ ...f, ip: e.target.value }))} placeholder="192.168.1.100" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Порт</Label>
+                  <Input type="number" value={editForm.port} onChange={(e) => setEditForm(f => ({ ...f, port: Number(e.target.value) }))} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Логин *</Label>
+                <Input value={editForm.username} onChange={(e) => setEditForm(f => ({ ...f, username: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Пароль</Label>
+                <Input type="password" value={editForm.password} onChange={(e) => setEditForm(f => ({ ...f, password: e.target.value }))} placeholder="Оставьте пустым, чтобы не менять" />
+              </div>
+              <div className="space-y-2">
+                <Label>Направление *</Label>
+                <select
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                  value={editForm.direction}
+                  onChange={(e) => setEditForm(f => ({ ...f, direction: e.target.value as 'entry' | 'exit' }))}
+                >
+                  <option value="entry">Вход</option>
+                  <option value="exit">Выход</option>
+                </select>
+              </div>
+            </form>
+          </DialogContent>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTerminal(null)}>Отмена</Button>
+            <Button type="submit" form="edit-terminal-form" disabled={updateMutation.isPending}>
+              {updateMutation.isPending ? 'Сохранение...' : 'Сохранить'}
+            </Button>
           </DialogFooter>
         </div>
       </Dialog>

@@ -75,4 +75,5 @@ export const clientsApi = {
     api.post('/api/clients/' + id + '/deposit', data),
   getTransactions: (id: number) =>
     api.get<Transaction[]>('/api/clients/' + id + '/transactions'),
+  delete: (id: number) => api.delete(`/api/clients/${id}`),
 }

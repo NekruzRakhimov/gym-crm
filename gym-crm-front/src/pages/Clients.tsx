@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/badge'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/dialog'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table'
 import { StatusBadge } from '../components/StatusBadge'
+import { PhotoUpload } from '../components/PhotoUpload'
 import { Spinner } from '../components/ui/spinner'
 import { Plus, Search } from 'lucide-react'
 import { format } from 'date-fns'
@@ -21,6 +22,8 @@ export function Clients() {
   const [page, setPage] = useState(1)
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState<CreateClientInput>({ full_name: '', phone: null, card_number: null })
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
+  const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 300)
@@ -32,12 +35,23 @@ export function Clients() {
     queryFn: () => clientsApi.list({ search: debouncedSearch, page, limit: 20 }).then((r) => r.data),
   })
 
+  const uploadPhotoMutation = useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) => clientsApi.uploadPhoto(id, file),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['clients'] }),
+  })
+
   const createMutation = useMutation({
     mutationFn: clientsApi.create,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['clients'] })
+    onSuccess: (res) => {
+      if (pendingPhoto) {
+        uploadPhotoMutation.mutate({ id: res.data.id, file: pendingPhoto })
+      } else {
+        qc.invalidateQueries({ queryKey: ['clients'] })
+      }
       setShowAdd(false)
       setForm({ full_name: '', phone: null, card_number: null })
+      setPendingPhoto(null)
+      if (pendingPhotoUrl) { URL.revokeObjectURL(pendingPhotoUrl); setPendingPhotoUrl(null) }
     },
   })
 
@@ -134,8 +148,8 @@ export function Clients() {
         </div>
       )}
 
-      <Dialog open={showAdd} onClose={() => setShowAdd(false)}>
-        <div className="w-[400px]">
+      <Dialog open={showAdd} onClose={() => { setShowAdd(false); setPendingPhoto(null); if (pendingPhotoUrl) { URL.revokeObjectURL(pendingPhotoUrl); setPendingPhotoUrl(null) } }}>
+        <div className="w-[420px]">
           <DialogHeader>
             <DialogTitle>Новый клиент</DialogTitle>
           </DialogHeader>
@@ -148,6 +162,18 @@ export function Clients() {
                 createMutation.mutate(form)
               }}
             >
+              <div className="flex justify-center">
+                <PhotoUpload
+                  photoPath={null}
+                  previewSrc={pendingPhotoUrl}
+                  onUpload={(file) => {
+                    if (pendingPhotoUrl) URL.revokeObjectURL(pendingPhotoUrl)
+                    setPendingPhoto(file)
+                    setPendingPhotoUrl(URL.createObjectURL(file))
+                  }}
+                  size={96}
+                />
+              </div>
               <div className="space-y-2">
                 <Label>ФИО *</Label>
                 <Input
@@ -176,7 +202,7 @@ export function Clients() {
             </form>
           </DialogContent>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdd(false)}>Отмена</Button>
+            <Button variant="outline" onClick={() => { setShowAdd(false); setPendingPhoto(null); if (pendingPhotoUrl) { URL.revokeObjectURL(pendingPhotoUrl); setPendingPhotoUrl(null) } }}>Отмена</Button>
             <Button type="submit" form="add-client-form" disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Создание...' : 'Создать'}
             </Button>
