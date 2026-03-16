@@ -63,6 +63,7 @@ func Setup(authSvc *service.AuthService, ctrls Controllers) *gin.Engine {
 			clients.POST("", ctrls.Client.Create)
 			clients.GET("/:id", ctrls.Client.GetByID)
 			clients.PUT("/:id", ctrls.Client.Update)
+			clients.DELETE("/:id", ctrls.Client.Delete)
 			clients.POST("/:id/photo", ctrls.Client.UploadPhoto)
 			clients.POST("/:id/block", ctrls.Client.Block)
 			clients.POST("/:id/unblock", ctrls.Client.Unblock)

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gym-crm/gym-crm-back/internal/models"
@@ -69,16 +70,18 @@ func (s *ClientService) UploadPhoto(ctx context.Context, id int, r io.Reader) er
 	}
 
 	filename := fmt.Sprintf("%d.jpg", id)
-	path := filepath.Join(s.uploadsDir, filename)
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	filePath := filepath.Join(s.uploadsDir, filename)
+	if err := os.WriteFile(filePath, data, 0644); err != nil {
 		return fmt.Errorf("write photo: %w", err)
 	}
 
-	if err := s.clientRepo.UpdatePhoto(ctx, id, path); err != nil {
+	// Store path with forward slashes so the frontend URL builder works on all OS
+	dbPath := strings.ReplaceAll(filePath, "\\", "/")
+	if err := s.clientRepo.UpdatePhoto(ctx, id, dbPath); err != nil {
 		return fmt.Errorf("update photo path: %w", err)
 	}
 
-	go s.syncSvc.SyncFaceToAllTerminals(context.Background(), id, data)
+	go s.syncSvc.SyncFaceToAllTerminals(context.Background(), id)
 	return nil
 }
 
@@ -118,7 +121,7 @@ func (s *ClientService) AssignTariff(ctx context.Context, clientID int, input mo
 		return nil, fmt.Errorf("client not found: %w", err)
 	}
 	if client.Balance < tariff.Price {
-		return nil, fmt.Errorf("insufficient balance: %.2f < %.2f", client.Balance, tariff.Price)
+		return nil, fmt.Errorf("недостаточно средств: баланс %.2f, необходимо %.2f", client.Balance, tariff.Price)
 	}
 
 	startDate, err := time.Parse("2006-01-02", input.StartDate)
@@ -156,4 +159,15 @@ func (s *ClientService) GetActiveTariff(ctx context.Context, clientID int) (*mod
 
 func (s *ClientService) GetPayments(ctx context.Context, clientID int) ([]models.ClientTariffDetail, error) {
 	return s.clientTariffRepo.ListByClient(ctx, clientID)
+}
+
+func (s *ClientService) Delete(ctx context.Context, id int) error {
+	// Remove from all terminals first (best-effort, don't fail if terminal unreachable)
+	go s.syncSvc.RemoveClientFromAllTerminals(context.Background(), id)
+
+	// Delete photo file
+	photoFile := filepath.Join(s.uploadsDir, fmt.Sprintf("%d.jpg", id))
+	os.Remove(photoFile)
+
+	return s.clientRepo.Delete(ctx, id)
 }

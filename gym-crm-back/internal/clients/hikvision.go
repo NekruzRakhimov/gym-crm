@@ -8,7 +8,6 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"strings"
 	"time"
 
@@ -23,12 +22,18 @@ type HikvisionClient struct {
 }
 
 func NewHikvisionClient(ip string, port int, username, password string) *HikvisionClient {
+	// DS-K1T344 terminals only expose ISAPI on HTTPS (port 443).
+	// The stored port is ignored for management calls; we always use 443.
+	_ = port
 	transport := &digest.Transport{
 		Username: username,
 		Password: password,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		},
 	}
 	return &HikvisionClient{
-		BaseURL:  fmt.Sprintf("http://%s:%d", ip, port),
+		BaseURL:  fmt.Sprintf("https://%s", ip),
 		Username: username,
 		Password: password,
 		HTTP: &http.Client{
@@ -57,7 +62,24 @@ func (c *HikvisionClient) doRead(path string) ([]byte, error) {
 }
 
 func (c *HikvisionClient) do(method, path string, body io.Reader, contentType string) error {
-	req, err := http.NewRequest(method, c.BaseURL+path, body)
+	// Buffer the body upfront so icholy/digest can reliably replay it on the
+	// 401-challenge → authenticated-retry cycle without consuming the reader.
+	var bodyBytes []byte
+	if body != nil {
+		var err error
+		bodyBytes, err = io.ReadAll(body)
+		if err != nil {
+			return fmt.Errorf("read body: %w", err)
+		}
+	}
+
+	var req *http.Request
+	var err error
+	if len(bodyBytes) > 0 {
+		req, err = http.NewRequest(method, c.BaseURL+path, bytes.NewReader(bodyBytes))
+	} else {
+		req, err = http.NewRequest(method, c.BaseURL+path, nil)
+	}
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
@@ -92,34 +114,44 @@ func (c *HikvisionClient) UpsertPerson(clientID int, fullName string, validEndTi
 		}
 	}`, clientID, fullName, validEndTime.Format("2006-01-02T15:04:05"))
 
-	// Try Modify (update existing user) first.
-	// If user doesn't exist on the terminal, fall back to SetUp (create).
+	// 1. Try Modify (update existing user).
 	if err := c.do("PUT", "/ISAPI/AccessControl/UserInfo/Modify?format=json",
 		strings.NewReader(body), "application/json"); err == nil {
 		return nil
 	}
+	// 2. Try PUT /SetUp — DS-K1T344 firmware rejects POST but accepts PUT.
+	if err := c.do("PUT", "/ISAPI/AccessControl/UserInfo/SetUp?format=json",
+		strings.NewReader(body), "application/json"); err == nil {
+		return nil
+	}
+	// 3. Fallback: standard POST /SetUp for other models.
 	return c.do("POST", "/ISAPI/AccessControl/UserInfo/SetUp?format=json",
 		strings.NewReader(body), "application/json")
 }
 
+// UploadFace sends the face photo to the terminal as a multipart upload.
+// jpegData must be a valid JPEG image ≤200KB with a detectable face.
 func (c *HikvisionClient) UploadFace(clientID int, jpegData []byte) error {
 	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
+	w := multipart.NewWriter(&buf)
 
-	// JSON part
-	dataPart, err := mw.CreatePart(textproto.MIMEHeader{
-		"Content-Disposition": []string{`form-data; name="FaceDataRecord"`},
-		"Content-Type":        []string{"application/json"},
+	// Part 1: JSON metadata
+	metaPart, err := w.CreatePart(map[string][]string{
+		"Content-Disposition": {`form-data; name="FaceDataRecord"`},
+		"Content-Type":        {"application/json"},
 	})
 	if err != nil {
-		return fmt.Errorf("create data part: %w", err)
+		return fmt.Errorf("create meta part: %w", err)
 	}
-	fmt.Fprintf(dataPart, `{"faceLibType":"blackFD","FDID":"1","FPID":"%d"}`, clientID)
+	meta := fmt.Sprintf(`{"employeeNo":"%d","faceLibType":"blackFD","FDID":"1","FPID":"%d"}`, clientID, clientID)
+	if _, err := metaPart.Write([]byte(meta)); err != nil {
+		return fmt.Errorf("write meta: %w", err)
+	}
 
-	// Image part
-	imgPart, err := mw.CreatePart(textproto.MIMEHeader{
-		"Content-Disposition": []string{`form-data; name="img"; filename="face.jpg"`},
-		"Content-Type":        []string{"image/jpeg"},
+	// Part 2: JPEG binary
+	imgPart, err := w.CreatePart(map[string][]string{
+		"Content-Disposition": {`form-data; name="img"; filename="face.jpg"`},
+		"Content-Type":        {"image/jpeg"},
 	})
 	if err != nil {
 		return fmt.Errorf("create img part: %w", err)
@@ -127,10 +159,10 @@ func (c *HikvisionClient) UploadFace(clientID int, jpegData []byte) error {
 	if _, err := imgPart.Write(jpegData); err != nil {
 		return fmt.Errorf("write img: %w", err)
 	}
-	mw.Close()
+	w.Close()
 
-	return c.do("PUT", "/ISAPI/Intelligent/FDLib/FDSetUp?format=json",
-		&buf, mw.FormDataContentType())
+	return c.do("POST", "/ISAPI/Intelligent/FDLib/FaceDataRecord?format=json",
+		&buf, w.FormDataContentType())
 }
 
 func (c *HikvisionClient) DeletePerson(clientID int) error {
@@ -165,74 +197,13 @@ func (c *HikvisionClient) Ping() error {
 	return c.do("GET", "/ISAPI/System/deviceInfo", nil, "")
 }
 
-// httpsClient builds a Digest-auth HTTP client that uses HTTPS with
-// InsecureSkipVerify — needed for Hikvision terminals which use self-signed certs.
-func (c *HikvisionClient) httpsClient() *http.Client {
-	return &http.Client{
-		Transport: &digest.Transport{
-			Username: c.Username,
-			Password: c.Password,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
-			},
-		},
-		Timeout: 10 * time.Second,
-	}
-}
-
 // EnableRemoteVerification configures the terminal to use sync remote
 // verification mode. The terminal will POST each auth attempt to our
 // webhook URL and wait for allow/deny before opening the door.
 // Call after SetupWebhook so the HTTP host is already configured.
-// Uses HTTPS port 443 because AcsCfgNormal is only exposed on HTTPS.
 func (c *HikvisionClient) EnableRemoteVerification() error {
-	// Derive HTTPS base URL from the terminal's IP (always port 443).
-	ip := strings.TrimPrefix(strings.TrimPrefix(c.BaseURL, "http://"), "https://")
-	if idx := strings.Index(ip, ":"); idx != -1 {
-		ip = ip[:idx]
-	}
-	httpsBase := fmt.Sprintf("https://%s", ip)
-	httpsHTTP := c.httpsClient()
-
-	doHTTPS := func(method, path string, body io.Reader, ct string) error {
-		req, err := http.NewRequest(method, httpsBase+path, body)
-		if err != nil {
-			return fmt.Errorf("new request: %w", err)
-		}
-		if ct != "" {
-			req.Header.Set("Content-Type", ct)
-		}
-		resp, err := httpsHTTP.Do(req)
-		if err != nil {
-			return fmt.Errorf("do request: %w", err)
-		}
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode >= 300 {
-			return fmt.Errorf("hikvision HTTPS %s %s: status %d: %s", method, path, resp.StatusCode, string(b))
-		}
-		return nil
-	}
-
-	getHTTPS := func(path string) ([]byte, error) {
-		req, err := http.NewRequest("GET", httpsBase+path, nil)
-		if err != nil {
-			return nil, fmt.Errorf("new request: %w", err)
-		}
-		resp, err := httpsHTTP.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("do request: %w", err)
-		}
-		defer resp.Body.Close()
-		b, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode >= 300 {
-			return nil, fmt.Errorf("hikvision HTTPS GET %s: status %d: %s", path, resp.StatusCode, string(b))
-		}
-		return b, nil
-	}
-
 	// Read current config to preserve all existing fields.
-	current, err := getHTTPS("/ISAPI/AccessControl/AcsCfgNormal?format=json")
+	current, err := c.doRead("/ISAPI/AccessControl/AcsCfgNormal?format=json")
 	if err != nil {
 		return fmt.Errorf("read AcsCfgNormal: %w", err)
 	}
@@ -258,6 +229,6 @@ func (c *HikvisionClient) EnableRemoteVerification() error {
 		return fmt.Errorf("marshal AcsCfgNormal: %w", err)
 	}
 
-	return doHTTPS("PUT", "/ISAPI/AccessControl/AcsCfgNormal?format=json",
+	return c.do("PUT", "/ISAPI/AccessControl/AcsCfgNormal?format=json",
 		bytes.NewReader(updated), "application/json")
 }

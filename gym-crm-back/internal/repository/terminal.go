@@ -13,7 +13,7 @@ type TerminalRepository interface {
 	ListActive(ctx context.Context) ([]models.Terminal, error)
 	GetByID(ctx context.Context, id int) (*models.Terminal, error)
 	Create(ctx context.Context, input models.CreateTerminalInput) (*models.Terminal, error)
-	Update(ctx context.Context, id int, input models.CreateTerminalInput) (*models.Terminal, error)
+	Update(ctx context.Context, id int, input models.UpdateTerminalInput) (*models.Terminal, error)
 	Delete(ctx context.Context, id int) error
 }
 
@@ -64,17 +64,26 @@ func (r *terminalRepo) Create(ctx context.Context, input models.CreateTerminalIn
 	return &t, nil
 }
 
-func (r *terminalRepo) Update(ctx context.Context, id int, input models.CreateTerminalInput) (*models.Terminal, error) {
+func (r *terminalRepo) Update(ctx context.Context, id int, input models.UpdateTerminalInput) (*models.Terminal, error) {
 	port := input.Port
 	if port == 0 {
 		port = 80
 	}
 	var t models.Terminal
-	err := r.db.QueryRowxContext(ctx,
-		`UPDATE terminals SET name=$1, ip=$2, port=$3, username=$4, password=$5, direction=$6
-		 WHERE id=$7 RETURNING *`,
-		input.Name, input.IP, port, input.Username, input.Password, input.Direction, id,
-	).StructScan(&t)
+	var err error
+	if input.Password != "" {
+		err = r.db.QueryRowxContext(ctx,
+			`UPDATE terminals SET name=$1, ip=$2, port=$3, username=$4, password=$5, direction=$6
+			 WHERE id=$7 RETURNING *`,
+			input.Name, input.IP, port, input.Username, input.Password, input.Direction, id,
+		).StructScan(&t)
+	} else {
+		err = r.db.QueryRowxContext(ctx,
+			`UPDATE terminals SET name=$1, ip=$2, port=$3, username=$4, direction=$5
+			 WHERE id=$6 RETURNING *`,
+			input.Name, input.IP, port, input.Username, input.Direction, id,
+		).StructScan(&t)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("update terminal: %w", err)
 	}

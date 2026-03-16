@@ -16,6 +16,7 @@ type ClientRepository interface {
 	Update(ctx context.Context, id int, input models.UpdateClientInput) (*models.Client, error)
 	UpdatePhoto(ctx context.Context, id int, photoPath string) error
 	SetActive(ctx context.Context, id int, active bool) error
+	Delete(ctx context.Context, id int) error
 }
 
 type clientRepo struct{ db *sqlx.DB }
@@ -111,4 +112,27 @@ func (r *clientRepo) UpdatePhoto(ctx context.Context, id int, photoPath string) 
 func (r *clientRepo) SetActive(ctx context.Context, id int, active bool) error {
 	_, err := r.db.ExecContext(ctx, "UPDATE clients SET is_active=$1 WHERE id=$2", active, id)
 	return err
+}
+
+func (r *clientRepo) Delete(ctx context.Context, id int) error {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM transactions WHERE client_id=$1", id); err != nil {
+		return fmt.Errorf("delete transactions: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM client_tariffs WHERE client_id=$1", id); err != nil {
+		return fmt.Errorf("delete client_tariffs: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE access_events SET client_id=NULL WHERE client_id=$1", id); err != nil {
+		return fmt.Errorf("nullify access_events: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM clients WHERE id=$1", id); err != nil {
+		return fmt.Errorf("delete client: %w", err)
+	}
+
+	return tx.Commit()
 }

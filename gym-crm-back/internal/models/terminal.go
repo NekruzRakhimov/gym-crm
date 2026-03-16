@@ -22,3 +22,12 @@ type CreateTerminalInput struct {
 	Password  string `json:"password" binding:"required"`
 	Direction string `json:"direction" binding:"required,oneof=entry exit"`
 }
+
+type UpdateTerminalInput struct {
+	Name      string `json:"name" binding:"required"`
+	IP        string `json:"ip" binding:"required"`
+	Port      int    `json:"port"`
+	Username  string `json:"username" binding:"required"`
+	Password  string `json:"password"` // optional — empty means keep existing
+	Direction string `json:"direction" binding:"required,oneof=entry exit"`
+}

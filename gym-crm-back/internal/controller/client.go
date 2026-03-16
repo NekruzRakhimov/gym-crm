@@ -203,6 +203,19 @@ func (h *ClientController) GetTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, ts)
 }
 
+func (h *ClientController) Delete(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if err := h.clientSvc.Delete(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
 func (h *ClientController) RevokeTariff(c *gin.Context) {
 	clientID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

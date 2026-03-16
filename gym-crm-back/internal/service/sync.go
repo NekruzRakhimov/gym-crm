@@ -1,10 +1,15 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -14,10 +19,10 @@ import (
 )
 
 type SyncService struct {
-	terminalRepo    repository.TerminalRepository
-	clientRepo      repository.ClientRepository
+	terminalRepo     repository.TerminalRepository
+	clientRepo       repository.ClientRepository
 	clientTariffRepo repository.ClientTariffRepository
-	uploadsDir      string
+	uploadsDir       string
 }
 
 func NewSyncService(
@@ -27,6 +32,41 @@ func NewSyncService(
 	uploadsDir string,
 ) *SyncService {
 	return &SyncService{terminalRepo, clientRepo, clientTariffRepo, uploadsDir}
+}
+
+// loadAndCompressFace reads the face JPEG from disk and compresses it to ≤200KB.
+func (s *SyncService) loadAndCompressFace(clientID int) ([]byte, error) {
+	photoFile := filepath.Join(s.uploadsDir, fmt.Sprintf("%d.jpg", clientID))
+	raw, err := os.ReadFile(photoFile)
+	if err != nil {
+		return nil, err
+	}
+	return compressJPEG(raw, 200*1024)
+}
+
+// compressJPEG re-encodes a JPEG (or PNG) to stay under maxBytes.
+// It tries quality 85, 70, 55, 40 before giving up.
+func compressJPEG(data []byte, maxBytes int) ([]byte, error) {
+	if len(data) <= maxBytes {
+		return data, nil
+	}
+	img, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode image: %w", err)
+	}
+	for _, q := range []int{85, 70, 55, 40} {
+		var buf bytes.Buffer
+		if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: q}); err != nil {
+			return nil, fmt.Errorf("encode jpeg: %w", err)
+		}
+		if buf.Len() <= maxBytes {
+			return buf.Bytes(), nil
+		}
+	}
+	// Return lowest quality result anyway
+	var buf bytes.Buffer
+	jpeg.Encode(&buf, img, &jpeg.Options{Quality: 40}) //nolint:errcheck
+	return buf.Bytes(), nil
 }
 
 func newHikvisionClient(t models.Terminal) *clients.HikvisionClient {
@@ -50,11 +90,10 @@ func (s *SyncService) SyncClientToAllTerminals(ctx context.Context, clientID int
 		return fmt.Errorf("list terminals: %w", err)
 	}
 
-	// Read face photo if exists
+	// Load face photo if exists
 	var faceData []byte
-	photoFile := fmt.Sprintf("%s/%d.jpg", s.uploadsDir, clientID)
-	if data, err := os.ReadFile(photoFile); err == nil {
-		faceData = data
+	if jpegData, err := s.loadAndCompressFace(clientID); err == nil {
+		faceData = jpegData
 	}
 
 	return s.runOnTerminals(terminals, func(t models.Terminal) error {
@@ -62,7 +101,7 @@ func (s *SyncService) SyncClientToAllTerminals(ctx context.Context, clientID int
 		if err := hik.UpsertPerson(clientID, client.FullName, endTime); err != nil {
 			return err
 		}
-		if len(faceData) > 0 {
+		if faceData != nil {
 			if err := hik.UploadFace(clientID, faceData); err != nil {
 				log.Printf("upload face client %d terminal %s: %v", clientID, t.IP, err)
 			}
@@ -87,14 +126,17 @@ func (s *SyncService) SyncPersonToAllTerminals(ctx context.Context, clientID int
 	})
 }
 
-func (s *SyncService) SyncFaceToAllTerminals(ctx context.Context, clientID int, jpegData []byte) error {
+func (s *SyncService) SyncFaceToAllTerminals(ctx context.Context, clientID int) error {
+	jpegData, err := s.loadAndCompressFace(clientID)
+	if err != nil {
+		return fmt.Errorf("load face: %w", err)
+	}
 	terminals, err := s.terminalRepo.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("list terminals: %w", err)
 	}
 	return s.runOnTerminals(terminals, func(t models.Terminal) error {
-		hik := newHikvisionClient(t)
-		return hik.UploadFace(clientID, jpegData)
+		return newHikvisionClient(t).UploadFace(clientID, jpegData)
 	})
 }
 
@@ -144,11 +186,10 @@ func (s *SyncService) SyncAllClientsToTerminal(ctx context.Context, terminalID i
 				return
 			}
 
-			// Try upload face if photo exists
+			// Upload face if photo exists
 			if cl.PhotoPath != nil {
-				photoFile := s.uploadsDir + "/" + fmt.Sprintf("%d.jpg", cl.ID)
-				if data, err := os.ReadFile(photoFile); err == nil {
-					if err := hik.UploadFace(cl.ID, data); err != nil {
+				if jpegData, err := s.loadAndCompressFace(cl.ID); err == nil {
+					if err := hik.UploadFace(cl.ID, jpegData); err != nil {
 						log.Printf("sync face %d to terminal %d: %v", cl.ID, terminalID, err)
 					}
 				}
