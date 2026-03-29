@@ -2,6 +2,8 @@ package router
 
 import (
 	"net/http"
+	"path/filepath"
+	"strings"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -23,10 +25,10 @@ type Controllers struct {
 	AdminUser *controller.AdminUserController
 }
 
-func Setup(authSvc *service.AuthService, ctrls Controllers) *gin.Engine {
+func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) *gin.Engine {
 	r := gin.Default()
 
-	// CORS
+	// CORS (needed only when frontend is served separately, e.g. during development)
 	r.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
@@ -37,6 +39,10 @@ func Setup(authSvc *service.AuthService, ctrls Controllers) *gin.Engine {
 
 	// Serve uploaded photos
 	r.Static("/uploads", "./uploads")
+
+	// Serve frontend static files
+	r.Static("/assets", filepath.Join(frontendDir, "assets"))
+	r.StaticFile("/favicon.ico", filepath.Join(frontendDir, "favicon.ico"))
 
 	// WebSocket (JWT via query param)
 	r.GET("/ws", ctrls.WebSocket.Handle)
@@ -121,6 +127,16 @@ func Setup(authSvc *service.AuthService, ctrls Controllers) *gin.Engine {
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	// SPA catch-all: serve index.html for all non-API, non-static routes
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/uploads/") || strings.HasPrefix(path, "/ws") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		c.File(filepath.Join(frontendDir, "index.html"))
 	})
 
 	return r

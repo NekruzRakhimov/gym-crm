@@ -70,7 +70,7 @@ func main() {
 		AdminUser: controller.NewAdminUserController(adminRepo),
 	}
 
-	r := router.Setup(authSvc, ctrls)
+	r := router.Setup(authSvc, ctrls, cfg.FrontendDir)
 
 	addr := fmt.Sprintf(":%d", cfg.ServerPort)
 	log.Printf("starting server on %s", addr)

@@ -17,6 +17,7 @@ type Config struct {
 	AdminUsername    string
 	AdminPassword    string
 	UploadsDir       string
+	FrontendDir      string
 }
 
 func Load() *Config {
@@ -38,6 +39,7 @@ func Load() *Config {
 		AdminUsername:    getEnv("ADMIN_USERNAME", "admin"),
 		AdminPassword:    getEnv("ADMIN_PASSWORD", "admin"),
 		UploadsDir:       getEnv("UPLOADS_DIR", "./uploads"),
+		FrontendDir:      getEnv("FRONTEND_DIR", "../gym-crm-front/dist"),
 	}
 }
 
