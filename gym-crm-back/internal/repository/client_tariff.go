@@ -12,7 +12,7 @@ import (
 )
 
 type ClientTariffRepository interface {
-	Assign(ctx context.Context, clientID int, input models.AssignTariffInput, endDate time.Time) (*models.ClientTariff, error)
+	Assign(ctx context.Context, clientID int, input models.AssignTariffInput, endDate time.Time, paidAmount float64) (*models.ClientTariff, error)
 	GetActive(ctx context.Context, clientID int) (*models.ClientTariffDetail, error)
 	ListByClient(ctx context.Context, clientID int) ([]models.ClientTariffDetail, error)
 	HasExpired(ctx context.Context, clientID int) (bool, error)
@@ -25,7 +25,7 @@ func NewClientTariffRepository(db *sqlx.DB) ClientTariffRepository {
 	return &clientTariffRepo{db}
 }
 
-func (r *clientTariffRepo) Assign(ctx context.Context, clientID int, input models.AssignTariffInput, endDate time.Time) (*models.ClientTariff, error) {
+func (r *clientTariffRepo) Assign(ctx context.Context, clientID int, input models.AssignTariffInput, endDate time.Time, paidAmount float64) (*models.ClientTariff, error) {
 	startDate, err := time.Parse("2006-01-02", input.StartDate)
 	if err != nil {
 		return nil, fmt.Errorf("parse start_date: %w", err)
@@ -33,9 +33,9 @@ func (r *clientTariffRepo) Assign(ctx context.Context, clientID int, input model
 
 	var ct models.ClientTariff
 	err = r.db.QueryRowxContext(ctx,
-		`INSERT INTO client_tariffs(client_id, tariff_id, start_date, end_date)
-		 VALUES($1,$2,$3,$4) RETURNING *`,
-		clientID, input.TariffID, startDate, endDate,
+		`INSERT INTO client_tariffs(client_id, tariff_id, start_date, end_date, paid_amount)
+		 VALUES($1,$2,$3,$4,$5) RETURNING *`,
+		clientID, input.TariffID, startDate, endDate, paidAmount,
 	).StructScan(&ct)
 	if err != nil {
 		return nil, fmt.Errorf("assign tariff: %w", err)

@@ -45,6 +45,9 @@ func (s *AccessService) ProcessEvent(
 
 	direction := terminal.Direction
 	method := &authMethod
+	terminalName := &terminal.Name
+	var clientName *string
+	var clientPhoto *string
 
 	event := models.AccessEvent{
 		TerminalID:    &terminalID,
@@ -63,7 +66,12 @@ func (s *AccessService) ProcessEvent(
 		if err != nil {
 			return nil, fmt.Errorf("save event: %w", err)
 		}
-		s.broadcastEvent(saved)
+		s.broadcastEvent(&models.AccessEventDetail{
+			AccessEvent:  *saved,
+			ClientName:   clientName,
+			ClientPhoto:  clientPhoto,
+			TerminalName: terminalName,
+		})
 		return saved, nil
 	}
 
@@ -81,6 +89,8 @@ func (s *AccessService) ProcessEvent(
 		return saveAndBroadcast("unknown")
 	}
 	event.ClientID = &clientID
+	clientName = &client.FullName
+	clientPhoto = client.PhotoPath
 
 	// 4. Check active
 	if !client.IsActive {
@@ -145,6 +155,10 @@ func (s *AccessService) Verify(
 		RawEvent:      rawEvent,
 	}
 
+	terminalName := &terminal.Name
+	var clientName *string
+	var clientPhoto *string
+
 	save := func(granted bool, reason string) (bool, string, error) {
 		event.AccessGranted = granted
 		if reason != "" {
@@ -154,7 +168,12 @@ func (s *AccessService) Verify(
 		if err != nil {
 			return granted, reason, fmt.Errorf("save event: %w", err)
 		}
-		s.broadcastEvent(saved)
+		s.broadcastEvent(&models.AccessEventDetail{
+			AccessEvent:  *saved,
+			ClientName:   clientName,
+			ClientPhoto:  clientPhoto,
+			TerminalName: terminalName,
+		})
 		return granted, reason, nil
 	}
 
@@ -170,6 +189,8 @@ func (s *AccessService) Verify(
 		return save(false, "unknown")
 	}
 	event.ClientID = &clientID
+	clientName = &client.FullName
+	clientPhoto = client.PhotoPath
 
 	if !client.IsActive {
 		return save(false, "blocked")
@@ -201,7 +222,7 @@ func (s *AccessService) Verify(
 	return save(true, "")
 }
 
-func (s *AccessService) broadcastEvent(event *models.AccessEvent) {
+func (s *AccessService) broadcastEvent(event *models.AccessEventDetail) {
 	wsEvt := WSEvent{Type: "access_event", Data: event}
 	data, err := json.Marshal(wsEvt)
 	if err != nil {

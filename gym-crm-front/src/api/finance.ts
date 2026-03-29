@@ -9,5 +9,6 @@ export interface FinanceStats {
 }
 
 export const financeApi = {
-  getStats: () => api.get<FinanceStats>('/api/finance/stats'),
+  getStats: (params?: { from?: string; to?: string }) =>
+    api.get<FinanceStats>('/api/finance/stats', { params }),
 }

@@ -91,6 +91,23 @@ func (r *terminalRepo) Update(ctx context.Context, id int, input models.UpdateTe
 }
 
 func (r *terminalRepo) Delete(ctx context.Context, id int) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM terminals WHERE id=$1", id)
-	return err
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE access_events SET terminal_id=NULL WHERE terminal_id=$1", id,
+	); err != nil {
+		return fmt.Errorf("nullify access_events: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM terminals WHERE id=$1", id,
+	); err != nil {
+		return fmt.Errorf("delete terminal: %w", err)
+	}
+
+	return tx.Commit()
 }

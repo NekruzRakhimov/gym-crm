@@ -10,6 +10,12 @@ export function useWebSocket(onMessage: (data: unknown) => void) {
 
   const connect = useCallback(() => {
     if (!accessToken) return
+    // Close any existing socket before opening a new one
+    if (ws.current) {
+      ws.current.onclose = null
+      ws.current.close()
+      ws.current = null
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${protocol}://${window.location.host}/ws?token=${accessToken}`
     const socket = new WebSocket(url)
@@ -34,7 +40,11 @@ export function useWebSocket(onMessage: (data: unknown) => void) {
     connect()
     return () => {
       clearTimeout(reconnectTimeout.current)
-      ws.current?.close()
+      if (ws.current) {
+        ws.current.onclose = null // prevent cleanup-close from scheduling a reconnect
+        ws.current.close()
+        ws.current = null
+      }
     }
   }, [connect])
 }

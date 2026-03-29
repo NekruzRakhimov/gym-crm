@@ -130,7 +130,7 @@ func (s *ClientService) AssignTariff(ctx context.Context, clientID int, input mo
 	}
 
 	endDate := startDate.AddDate(0, 0, tariff.DurationDays)
-	ct, err := s.clientTariffRepo.Assign(ctx, clientID, input, endDate)
+	ct, err := s.clientTariffRepo.Assign(ctx, clientID, input, endDate, tariff.Price)
 	if err != nil {
 		return nil, err
 	}

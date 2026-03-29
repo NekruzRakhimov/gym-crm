@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '../components/ui/dialog'
 import { DirectionBadge } from '../components/DirectionBadge'
 import { Spinner } from '../components/ui/spinner'
-import { Plus, RefreshCw, DoorOpen, Wifi, ShieldCheck, Pencil } from 'lucide-react'
+import { Plus, RefreshCw, DoorOpen, Wifi, ShieldCheck, Pencil, Trash2 } from 'lucide-react'
 
 const emptyForm: CreateTerminalInput = { name: '', ip: '', port: 80, username: 'admin', password: '', direction: 'entry' }
 
@@ -63,6 +63,11 @@ export function Terminals() {
     mutationFn: terminalsApi.sync,
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: terminalsApi.delete,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['terminals'] }),
+  })
+
   const [remoteVerifyInfo, setRemoteVerifyInfo] = useState<{ steps: string[]; webhook_url: string } | null>(null)
 
   const remoteVerifyMutation = useMutation({
@@ -102,6 +107,13 @@ export function Terminals() {
                       className="text-muted-foreground hover:text-foreground"
                     >
                       <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm(`Удалить терминал "${t.name}"?`)) deleteMutation.mutate(t.id) }}
+                      className="text-muted-foreground hover:text-destructive"
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

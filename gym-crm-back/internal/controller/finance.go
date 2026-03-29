@@ -16,7 +16,9 @@ func NewFinanceController(transactionRepo repository.TransactionRepository) *Fin
 }
 
 func (h *FinanceController) GetStats(c *gin.Context) {
-	stats, err := h.transactionRepo.GetFinanceStats(c.Request.Context())
+	from := c.Query("from")
+	to := c.Query("to")
+	stats, err := h.transactionRepo.GetFinanceStats(c.Request.Context(), from, to)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

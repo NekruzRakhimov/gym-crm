@@ -121,6 +121,12 @@ func (h *WebhookController) Handle(c *gin.Context) {
 		return
 	}
 
+	// Skip remote verification events — they are already processed by the /verify endpoint
+	if evt.AccessControllerEvent.RemoteCheck {
+		c.JSON(http.StatusOK, gin.H{"message": "ok"})
+		return
+	}
+
 	ace := evt.AccessControllerEvent
 	authMethod := authMethodFromVerifyMode(ace.CurrentVerifyMode)
 	employeeNo := ace.EmployeeNoString
