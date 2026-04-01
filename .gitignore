@@ -1,0 +1,7 @@
+node_modules/
+gym-crm-front/node_modules/
+gym-crm-back/uploads/*.jpg
+gym-crm-back/uploads/*.png
+gym-crm-back/*.env
+gym-crm-back/.env
+.env
