@@ -82,8 +82,8 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 			clients.GET("/:id/transactions", ctrls.Client.GetTransactions)
 		}
 
-		// Tariffs
-		tariffs := api.Group("/tariffs")
+		// Tariffs (admin only)
+		tariffs := api.Group("/tariffs", middleware.RequireRole("admin"))
 		{
 			tariffs.GET("", ctrls.Tariff.List)
 			tariffs.POST("", ctrls.Tariff.Create)
@@ -92,11 +92,11 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 			tariffs.PATCH("/:id/toggle", ctrls.Tariff.ToggleActive)
 		}
 
-		// Events
-		api.GET("/events", ctrls.Event.List)
+		// Events (admin only)
+		api.GET("/events", middleware.RequireRole("admin"), ctrls.Event.List)
 
-		// Dashboard
-		api.GET("/dashboard/stats", ctrls.Dashboard.GetStats)
+		// Dashboard (admin only)
+		api.GET("/dashboard/stats", middleware.RequireRole("admin"), ctrls.Dashboard.GetStats)
 
 		// Finance (admin only)
 		api.GET("/finance/stats", middleware.RequireRole("admin"), ctrls.Finance.GetStats)
@@ -109,8 +109,8 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 			users.DELETE("/:id", ctrls.AdminUser.Delete)
 		}
 
-		// Terminals
-		terminals := api.Group("/terminals")
+		// Terminals (admin only)
+		terminals := api.Group("/terminals", middleware.RequireRole("admin"))
 		{
 			terminals.GET("", ctrls.Terminal.List)
 			terminals.POST("", ctrls.Terminal.Create)

@@ -15,11 +15,11 @@ import {
 import { cn } from '../lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Главная', icon: LayoutDashboard, end: true, adminOnly: false },
+  { to: '/', label: 'Главная', icon: LayoutDashboard, end: true, adminOnly: true },
   { to: '/clients', label: 'Клиенты', icon: Users, adminOnly: false },
-  { to: '/tariffs', label: 'Тарифы', icon: CreditCard, adminOnly: false },
-  { to: '/events', label: 'События', icon: Activity, adminOnly: false },
-  { to: '/terminals', label: 'Терминалы', icon: Monitor, adminOnly: false },
+  { to: '/tariffs', label: 'Тарифы', icon: CreditCard, adminOnly: true },
+  { to: '/events', label: 'События', icon: Activity, adminOnly: true },
+  { to: '/terminals', label: 'Терминалы', icon: Monitor, adminOnly: true },
   { to: '/finance', label: 'Финансы', icon: TrendingUp, adminOnly: true },
   { to: '/users', label: 'Пользователи', icon: UserCog, adminOnly: true },
 ]

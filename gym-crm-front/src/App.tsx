@@ -28,7 +28,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const role = useAuthStore((s) => s.role)
-  if (role !== 'admin') return <Navigate to="/" replace />
+  if (role !== 'admin') return <Navigate to="/clients" replace />
   return <>{children}</>
 }
 
@@ -70,12 +70,12 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route index element={<AdminRoute><Dashboard /></AdminRoute>} />
           <Route path="clients" element={<Clients />} />
           <Route path="clients/:id" element={<ClientDetail />} />
-          <Route path="tariffs" element={<Tariffs />} />
-          <Route path="events" element={<Events />} />
-          <Route path="terminals" element={<Terminals />} />
+          <Route path="tariffs" element={<AdminRoute><Tariffs /></AdminRoute>} />
+          <Route path="events" element={<AdminRoute><Events /></AdminRoute>} />
+          <Route path="terminals" element={<AdminRoute><Terminals /></AdminRoute>} />
           <Route path="finance" element={<AdminRoute><Finance /></AdminRoute>} />
           <Route path="users" element={<AdminRoute><UsersPage /></AdminRoute>} />
         </Route>
