@@ -49,6 +49,7 @@ export function Tariffs() {
   const [editing, setEditing] = useState<Tariff | null>(null)
   const [form, setForm] = useState<CreateTariffInput>(emptyForm)
   const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [timeError, setTimeError] = useState<string | null>(null)
 
   // Derived UI state from form values
   const customDays = !isPreset(form.schedule_days ?? 'all')
@@ -102,10 +103,16 @@ export function Tariffs() {
     setShowForm(false)
     setEditing(null)
     setForm(emptyForm)
+    setTimeError(null)
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (form.time_from && form.time_to && form.time_from >= form.time_to) {
+      setTimeError('Время начала должно быть раньше времени окончания')
+      return
+    }
+    setTimeError(null)
     if (editing) updateMutation.mutate({ id: editing.id, data: form })
     else createMutation.mutate(form)
   }
@@ -286,18 +293,21 @@ export function Tariffs() {
                   </label>
                 </div>
                 {!allDay && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="time" value={form.time_from ?? ''}
-                      onChange={(e) => setForm(f => ({ ...f, time_from: e.target.value || null }))}
-                      className="flex-1"
-                    />
-                    <span className="text-muted-foreground">—</span>
-                    <Input
-                      type="time" value={form.time_to ?? ''}
-                      onChange={(e) => setForm(f => ({ ...f, time_to: e.target.value || null }))}
-                      className="flex-1"
-                    />
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="time" value={form.time_from ?? ''}
+                        onChange={(e) => { setTimeError(null); setForm(f => ({ ...f, time_from: e.target.value || null })) }}
+                        className="flex-1"
+                      />
+                      <span className="text-muted-foreground">—</span>
+                      <Input
+                        type="time" value={form.time_to ?? ''}
+                        onChange={(e) => { setTimeError(null); setForm(f => ({ ...f, time_to: e.target.value || null })) }}
+                        className="flex-1"
+                      />
+                    </div>
+                    {timeError && <p className="text-sm text-destructive">{timeError}</p>}
                   </div>
                 )}
               </div>
