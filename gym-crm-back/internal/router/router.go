@@ -69,7 +69,7 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 			clients.POST("", ctrls.Client.Create)
 			clients.GET("/:id", ctrls.Client.GetByID)
 			clients.PUT("/:id", ctrls.Client.Update)
-			clients.DELETE("/:id", ctrls.Client.Delete)
+			clients.DELETE("/:id", middleware.RequireRole("admin"), ctrls.Client.Delete)
 			clients.POST("/:id/photo", ctrls.Client.UploadPhoto)
 			clients.POST("/:id/block", ctrls.Client.Block)
 			clients.POST("/:id/unblock", ctrls.Client.Unblock)
@@ -82,10 +82,10 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 			clients.GET("/:id/transactions", ctrls.Client.GetTransactions)
 		}
 
-		// Tariffs (admin only)
+		// Tariffs
+		api.GET("/tariffs", ctrls.Tariff.List) // all roles — needed for tariff assignment
 		tariffs := api.Group("/tariffs", middleware.RequireRole("admin"))
 		{
-			tariffs.GET("", ctrls.Tariff.List)
 			tariffs.POST("", ctrls.Tariff.Create)
 			tariffs.PUT("/:id", ctrls.Tariff.Update)
 			tariffs.DELETE("/:id", ctrls.Tariff.Delete)
@@ -95,8 +95,8 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 		// Events (admin only)
 		api.GET("/events", middleware.RequireRole("admin"), ctrls.Event.List)
 
-		// Dashboard (admin only)
-		api.GET("/dashboard/stats", middleware.RequireRole("admin"), ctrls.Dashboard.GetStats)
+		// Dashboard (all authenticated roles)
+		api.GET("/dashboard/stats", ctrls.Dashboard.GetStats)
 
 		// Finance (admin only)
 		api.GET("/finance/stats", middleware.RequireRole("admin"), ctrls.Finance.GetStats)

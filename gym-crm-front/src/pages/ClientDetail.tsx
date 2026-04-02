@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../store/auth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { clientsApi, type AssignTariffInput, type Transaction } from '../api/clients'
 import { tariffsApi } from '../api/tariffs'
@@ -23,6 +24,7 @@ export function ClientDetail() {
   const clientId = Number(id)
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const isAdmin = useAuthStore((s) => s.role) === 'admin'
   const [activeTab, setActiveTab] = useState<'events' | 'payments' | 'transactions'>('events')
   const [eventsPage, setEventsPage] = useState(1)
   const [showAssign, setShowAssign] = useState(false)
@@ -161,18 +163,20 @@ export function ClientDetail() {
                   >
                     {client.is_active ? 'Заблокировать' : 'Разблокировать'}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (window.confirm(`Удалить клиента "${client.full_name}"? Это действие необратимо.`)) {
-                        deleteMutation.mutate()
-                      }
-                    }}
-                    disabled={deleteMutation.isPending}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (window.confirm(`Удалить клиента "${client.full_name}"? Это действие необратимо.`)) {
+                          deleteMutation.mutate()
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-1">

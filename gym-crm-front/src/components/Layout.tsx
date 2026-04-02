@@ -15,7 +15,7 @@ import {
 import { cn } from '../lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Главная', icon: LayoutDashboard, end: true, adminOnly: true },
+  { to: '/', label: 'Главная', icon: LayoutDashboard, end: true, adminOnly: false },
   { to: '/clients', label: 'Клиенты', icon: Users, adminOnly: false },
   { to: '/tariffs', label: 'Тарифы', icon: CreditCard, adminOnly: true },
   { to: '/events', label: 'События', icon: Activity, adminOnly: true },

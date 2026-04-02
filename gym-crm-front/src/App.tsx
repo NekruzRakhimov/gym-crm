@@ -70,7 +70,7 @@ export default function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<AdminRoute><Dashboard /></AdminRoute>} />
+          <Route index element={<Dashboard />} />
           <Route path="clients" element={<Clients />} />
           <Route path="clients/:id" element={<ClientDetail />} />
           <Route path="tariffs" element={<AdminRoute><Tariffs /></AdminRoute>} />
