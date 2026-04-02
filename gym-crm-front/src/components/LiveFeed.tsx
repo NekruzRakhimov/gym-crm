@@ -16,6 +16,18 @@ const denyReasonRu = (reason: string | null | undefined): string => {
   return reason ? (map[reason] ?? reason) : 'Отказан'
 }
 
+const statusLabel: Record<string, string> = {
+  connected: 'Подключено',
+  connecting: 'Подключение...',
+  disconnected: 'Нет соединения',
+}
+
+const statusColor: Record<string, string> = {
+  connected: 'bg-green-500',
+  connecting: 'bg-yellow-400',
+  disconnected: 'bg-red-500',
+}
+
 export function LiveFeed() {
   const [events, setEvents] = useState<AccessEvent[]>([])
 
@@ -26,10 +38,14 @@ export function LiveFeed() {
     }
   }, [])
 
-  useWebSocket(onMessage)
+  const wsStatus = useWebSocket(onMessage)
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center gap-2 pb-1">
+        <span className={`w-2 h-2 rounded-full ${statusColor[wsStatus]}`} />
+        <span className="text-xs text-muted-foreground">{statusLabel[wsStatus]}</span>
+      </div>
       {events.length === 0 && (
         <p className="text-muted-foreground text-sm py-4 text-center">Ожидание событий...</p>
       )}

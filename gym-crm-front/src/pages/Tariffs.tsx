@@ -197,6 +197,7 @@ export function Tariffs() {
                 <Input
                   type="number" min={1} value={form.duration_days}
                   onChange={(e) => setForm(f => ({ ...f, duration_days: Number(e.target.value) }))}
+                  onFocus={(e) => e.target.select()}
                   required
                 />
               </div>
@@ -207,6 +208,7 @@ export function Tariffs() {
                 <Input
                   type="number" min={1} value={form.max_visits_per_day ?? ''}
                   onChange={(e) => setForm(f => ({ ...f, max_visits_per_day: e.target.value ? Number(e.target.value) : null }))}
+                  onFocus={(e) => e.target.select()}
                 />
               </div>
 
@@ -214,8 +216,10 @@ export function Tariffs() {
               <div className="space-y-2">
                 <Label>Цена *</Label>
                 <Input
-                  type="number" step="0.01" min={0} value={form.price}
+                  type="number" step="0.01" min={0} value={form.price || ''}
                   onChange={(e) => setForm(f => ({ ...f, price: Number(e.target.value) }))}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="0.00"
                   required
                 />
               </div>

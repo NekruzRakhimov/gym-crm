@@ -222,6 +222,9 @@ func (h *WebhookController) Verify(c *gin.Context) {
 
 	resp := acsRemoteVerifyResp{}
 	resp.AcsRemoteVerify.DoorIndex = 1
+	if req.AcsRemoteVerifyReqInfo != nil {
+		resp.AcsRemoteVerify.SerialNo = req.AcsRemoteVerifyReqInfo.SerialNo
+	}
 	if granted {
 		resp.AcsRemoteVerify.Status = "normal"
 	} else {

@@ -1,11 +1,14 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 
-export function useWebSocket(onMessage: (data: unknown) => void) {
+export type WSStatus = 'connecting' | 'connected' | 'disconnected'
+
+export function useWebSocket(onMessage: (data: unknown) => void): WSStatus {
   const accessToken = useAuthStore((s) => s.accessToken)
   const ws = useRef<WebSocket | null>(null)
   const reconnectTimeout = useRef<number>()
   const onMessageRef = useRef(onMessage)
+  const [status, setStatus] = useState<WSStatus>('disconnected')
   onMessageRef.current = onMessage
 
   const connect = useCallback(() => {
@@ -18,9 +21,13 @@ export function useWebSocket(onMessage: (data: unknown) => void) {
     }
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const url = `${protocol}://${window.location.host}/ws?token=${accessToken}`
+    setStatus('connecting')
     const socket = new WebSocket(url)
     ws.current = socket
 
+    socket.onopen = () => {
+      setStatus('connected')
+    }
     socket.onmessage = (e) => {
       try {
         onMessageRef.current(JSON.parse(e.data))
@@ -29,6 +36,7 @@ export function useWebSocket(onMessage: (data: unknown) => void) {
       }
     }
     socket.onclose = () => {
+      setStatus('disconnected')
       reconnectTimeout.current = window.setTimeout(connect, 3000)
     }
     socket.onerror = () => {
@@ -47,4 +55,6 @@ export function useWebSocket(onMessage: (data: unknown) => void) {
       }
     }
   }, [connect])
+
+  return status
 }

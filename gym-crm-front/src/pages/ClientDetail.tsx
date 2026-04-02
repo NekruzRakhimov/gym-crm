@@ -340,7 +340,7 @@ export function ClientDetail() {
             <form id="deposit-form" className="space-y-4" onSubmit={(e) => { e.preventDefault(); depositMutation.mutate() }}>
               <div className="space-y-2">
                 <Label>Сумма *</Label>
-                <Input type="number" step="0.01" min="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} required />
+                <Input type="number" step="0.01" min="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} onFocus={(e) => e.target.select()} placeholder="0.00" required />
               </div>
               <div className="space-y-2">
                 <Label>Описание</Label>
