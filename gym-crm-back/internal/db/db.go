@@ -84,7 +84,7 @@ func SeedAdmin(db *sqlx.DB, username, password string) error {
 
 	username = strings.TrimSpace(username)
 	if _, err := db.ExecContext(context.Background(),
-		"INSERT INTO admins(username, password_hash) VALUES($1, $2)",
+		"INSERT INTO admins(username, password_hash, role) VALUES($1, $2, 'admin')",
 		username, string(hash),
 	); err != nil {
 		return fmt.Errorf("insert admin: %w", err)
