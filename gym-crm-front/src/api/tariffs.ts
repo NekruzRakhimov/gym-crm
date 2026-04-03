@@ -4,7 +4,7 @@ export interface Tariff {
   id: number
   name: string
   duration_days: number
-  max_visits_per_day: number | null
+  max_visit_days: number | null
   price: number
   active: boolean
   schedule_days: string        // all | weekdays | weekends | even | odd
@@ -16,7 +16,7 @@ export interface Tariff {
 export interface CreateTariffInput {
   name: string
   duration_days: number
-  max_visits_per_day?: number | null
+  max_visit_days?: number | null
   price: number
   schedule_days?: string
   time_from?: string | null

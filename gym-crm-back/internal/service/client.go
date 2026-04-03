@@ -129,7 +129,7 @@ func (s *ClientService) AssignTariff(ctx context.Context, clientID int, input mo
 		return nil, fmt.Errorf("invalid start_date: %w", err)
 	}
 
-	endDate := startDate.AddDate(0, 0, tariff.DurationDays)
+	endDate := startDate.AddDate(0, 0, tariff.DurationDays-1)
 	ct, err := s.clientTariffRepo.Assign(ctx, clientID, input, endDate, tariff.Price)
 	if err != nil {
 		return nil, err

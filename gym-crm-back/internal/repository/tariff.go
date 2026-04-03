@@ -2,12 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/gym-crm/gym-crm-back/internal/models"
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
+
+// ErrTariffInUse is returned when trying to delete a tariff that has assigned clients.
+var ErrTariffInUse = errors.New("тариф используется клиентами и не может быть удалён")
 
 type TariffRepository interface {
 	List(ctx context.Context) ([]models.Tariff, error)
@@ -64,9 +69,9 @@ func scheduleDays(s string) string {
 func (r *tariffRepo) Create(ctx context.Context, input models.CreateTariffInput) (*models.Tariff, error) {
 	var t models.Tariff
 	err := r.db.QueryRowxContext(ctx,
-		`INSERT INTO tariffs(name, duration_days, max_visits_per_day, price, schedule_days, time_from, time_to)
+		`INSERT INTO tariffs(name, duration_days, max_visit_days, price, schedule_days, time_from, time_to)
 		 VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-		input.Name, input.DurationDays, input.MaxVisitsPerDay, input.Price,
+		input.Name, input.DurationDays, input.MaxVisitDays, input.Price,
 		scheduleDays(input.ScheduleDays), input.TimeFrom, input.TimeTo,
 	).StructScan(&t)
 	if err != nil {
@@ -78,10 +83,10 @@ func (r *tariffRepo) Create(ctx context.Context, input models.CreateTariffInput)
 func (r *tariffRepo) Update(ctx context.Context, id int, input models.CreateTariffInput) (*models.Tariff, error) {
 	var t models.Tariff
 	err := r.db.QueryRowxContext(ctx,
-		`UPDATE tariffs SET name=$1, duration_days=$2, max_visits_per_day=$3, price=$4,
+		`UPDATE tariffs SET name=$1, duration_days=$2, max_visit_days=$3, price=$4,
 		  schedule_days=$5, time_from=$6, time_to=$7
 		 WHERE id=$8 RETURNING *`,
-		input.Name, input.DurationDays, input.MaxVisitsPerDay, input.Price,
+		input.Name, input.DurationDays, input.MaxVisitDays, input.Price,
 		scheduleDays(input.ScheduleDays), input.TimeFrom, input.TimeTo, id,
 	).StructScan(&t)
 	if err != nil {
@@ -92,7 +97,14 @@ func (r *tariffRepo) Update(ctx context.Context, id int, input models.CreateTari
 
 func (r *tariffRepo) Delete(ctx context.Context, id int) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM tariffs WHERE id=$1", id)
-	return err
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23503" { // foreign_key_violation
+			return ErrTariffInUse
+		}
+		return err
+	}
+	return nil
 }
 
 func (r *tariffRepo) ToggleActive(ctx context.Context, id int) (*models.Tariff, error) {

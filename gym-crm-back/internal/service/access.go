@@ -111,14 +111,22 @@ func (s *AccessService) ProcessEvent(
 		return saveAndBroadcast(reason)
 	}
 
-	// 6. Check visit limit for entries
-	if direction == "entry" && activeTariff.MaxVisitsPerDay != nil {
-		count, err := s.eventRepo.CountGrantedEntriesToday(ctx, clientID)
+	// 6. Check visit days limit for entries
+	if direction == "entry" && activeTariff.MaxVisitDays != nil {
+		// Only count a new visit day if client hasn't entered today yet
+		hasEntryToday, err := s.eventRepo.HasGrantedEntryToday(ctx, clientID)
 		if err != nil {
-			return nil, fmt.Errorf("count entries: %w", err)
+			return nil, fmt.Errorf("check entry today: %w", err)
 		}
-		if count >= *activeTariff.MaxVisitsPerDay {
-			return saveAndBroadcast("limit_reached")
+		if !hasEntryToday {
+			// This would be a new visit day — check if limit reached
+			usedDays, err := s.eventRepo.CountVisitDaysInPeriod(ctx, clientID, activeTariff.StartDate, activeTariff.EndDate)
+			if err != nil {
+				return nil, fmt.Errorf("count visit days: %w", err)
+			}
+			if usedDays >= *activeTariff.MaxVisitDays {
+				return saveAndBroadcast("limit_reached")
+			}
 		}
 	}
 
@@ -209,13 +217,19 @@ func (s *AccessService) Verify(
 		return save(false, reason)
 	}
 
-	if direction == "entry" && activeTariff.MaxVisitsPerDay != nil {
-		count, err := s.eventRepo.CountGrantedEntriesToday(ctx, clientID)
+	if direction == "entry" && activeTariff.MaxVisitDays != nil {
+		hasEntryToday, err := s.eventRepo.HasGrantedEntryToday(ctx, clientID)
 		if err != nil {
-			return false, "", fmt.Errorf("count entries: %w", err)
+			return false, "", fmt.Errorf("check entry today: %w", err)
 		}
-		if count >= *activeTariff.MaxVisitsPerDay {
-			return save(false, "limit_reached")
+		if !hasEntryToday {
+			usedDays, err := s.eventRepo.CountVisitDaysInPeriod(ctx, clientID, activeTariff.StartDate, activeTariff.EndDate)
+			if err != nil {
+				return false, "", fmt.Errorf("count visit days: %w", err)
+			}
+			if usedDays >= *activeTariff.MaxVisitDays {
+				return save(false, "limit_reached")
+			}
 		}
 	}
 

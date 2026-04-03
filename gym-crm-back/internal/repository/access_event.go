@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gym-crm/gym-crm-back/internal/models"
 	"github.com/jmoiron/sqlx"
@@ -14,7 +15,8 @@ type AccessEventRepository interface {
 	List(ctx context.Context, filter models.EventsFilter) ([]models.AccessEventDetail, int, error)
 	ListByClient(ctx context.Context, clientID, page, limit int) ([]models.AccessEventDetail, int, error)
 	GetDashboardStats(ctx context.Context) (models.DashboardStats, error)
-	CountGrantedEntriesToday(ctx context.Context, clientID int) (int, error)
+	CountVisitDaysInPeriod(ctx context.Context, clientID int, startDate, endDate time.Time) (int, error)
+	HasGrantedEntryToday(ctx context.Context, clientID int) (bool, error)
 }
 
 type accessEventRepo struct{ db *sqlx.DB }
@@ -182,7 +184,27 @@ func (r *accessEventRepo) GetDashboardStats(ctx context.Context) (models.Dashboa
 	return stats, nil
 }
 
-func (r *accessEventRepo) CountGrantedEntriesToday(ctx context.Context, clientID int) (int, error) {
+// CountVisitDaysInPeriod counts the number of distinct calendar days in which
+// the client had at least one granted entry within [startDate, endDate].
+func (r *accessEventRepo) CountVisitDaysInPeriod(ctx context.Context, clientID int, startDate, endDate time.Time) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT event_time::date)
+		FROM access_events
+		WHERE client_id=$1
+		  AND direction='entry'
+		  AND access_granted=true
+		  AND event_time::date >= $2
+		  AND event_time::date <= $3
+	`, clientID, startDate, endDate).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count visit days: %w", err)
+	}
+	return count, nil
+}
+
+// HasGrantedEntryToday returns true if the client already has a granted entry today.
+func (r *accessEventRepo) HasGrantedEntryToday(ctx context.Context, clientID int) (bool, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM access_events
@@ -192,7 +214,7 @@ func (r *accessEventRepo) CountGrantedEntriesToday(ctx context.Context, clientID
 		  AND event_time::date = CURRENT_DATE
 	`, clientID).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("count entries today: %w", err)
+		return false, fmt.Errorf("check entry today: %w", err)
 	}
-	return count, nil
+	return count > 0, nil
 }

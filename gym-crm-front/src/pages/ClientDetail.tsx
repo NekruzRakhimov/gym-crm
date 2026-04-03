@@ -206,7 +206,7 @@ export function ClientDetail() {
                   {format(new Date(activeTariff.end_date), 'dd MMM yyyy')}
                 </div>
                 <div className="text-sm">
-                  Визитов в день: {activeTariff.max_visits_per_day ?? 'Без ограничений'}
+                  Дней посещений: {activeTariff.max_visit_days != null ? `${activeTariff.max_visit_days} дн.` : 'Без ограничений'}
                 </div>
               </div>
               <Button

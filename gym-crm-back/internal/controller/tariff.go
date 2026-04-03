@@ -1,11 +1,13 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gym-crm/gym-crm-back/internal/models"
+	"github.com/gym-crm/gym-crm-back/internal/repository"
 	"github.com/gym-crm/gym-crm-back/internal/service"
 )
 
@@ -66,6 +68,10 @@ func (h *TariffController) Delete(c *gin.Context) {
 		return
 	}
 	if err := h.tariffSvc.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrTariffInUse) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

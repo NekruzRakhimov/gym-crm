@@ -46,7 +46,7 @@ func (r *clientTariffRepo) Assign(ctx context.Context, clientID int, input model
 func (r *clientTariffRepo) GetActive(ctx context.Context, clientID int) (*models.ClientTariffDetail, error) {
 	var d models.ClientTariffDetail
 	err := r.db.QueryRowxContext(ctx, `
-		SELECT ct.*, t.name AS tariff_name, t.duration_days, t.max_visits_per_day,
+		SELECT ct.*, t.name AS tariff_name, t.duration_days, t.max_visit_days,
 		       t.schedule_days, t.time_from, t.time_to
 		FROM client_tariffs ct
 		JOIN tariffs t ON t.id = ct.tariff_id
@@ -68,7 +68,7 @@ func (r *clientTariffRepo) GetActive(ctx context.Context, clientID int) (*models
 func (r *clientTariffRepo) ListByClient(ctx context.Context, clientID int) ([]models.ClientTariffDetail, error) {
 	var ds []models.ClientTariffDetail
 	err := r.db.SelectContext(ctx, &ds, `
-		SELECT ct.*, t.name AS tariff_name, t.duration_days, t.max_visits_per_day,
+		SELECT ct.*, t.name AS tariff_name, t.duration_days, t.max_visit_days,
 		       t.schedule_days, t.time_from, t.time_to
 		FROM client_tariffs ct
 		JOIN tariffs t ON t.id = ct.tariff_id

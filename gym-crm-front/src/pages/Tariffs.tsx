@@ -39,7 +39,7 @@ function scheduleLabel(s: string): string {
 }
 
 const emptyForm: CreateTariffInput = {
-  name: '', duration_days: 30, max_visits_per_day: null, price: 0,
+  name: '', duration_days: 30, max_visit_days: null, price: 0,
   schedule_days: 'all', time_from: null, time_to: null,
 }
 
@@ -82,6 +82,7 @@ export function Tariffs() {
   const deleteMutation = useMutation({
     mutationFn: tariffsApi.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['tariffs'] }); setDeleteId(null) },
+    onError: () => {},
   })
 
   const toggleMutation = useMutation({
@@ -92,7 +93,7 @@ export function Tariffs() {
   const openEdit = (t: Tariff) => {
     setEditing(t)
     setForm({
-      name: t.name, duration_days: t.duration_days, max_visits_per_day: t.max_visits_per_day,
+      name: t.name, duration_days: t.duration_days, max_visit_days: t.max_visit_days,
       price: t.price, schedule_days: t.schedule_days || 'all',
       time_from: t.time_from, time_to: t.time_to,
     })
@@ -135,7 +136,7 @@ export function Tariffs() {
             <TableRow>
               <TableHead>Название</TableHead>
               <TableHead>Длительность</TableHead>
-              <TableHead>Визитов в день</TableHead>
+              <TableHead>Дней посещений</TableHead>
               <TableHead>Расписание</TableHead>
               <TableHead>Цена</TableHead>
               <TableHead>Статус</TableHead>
@@ -147,7 +148,7 @@ export function Tariffs() {
               <TableRow key={t.id}>
                 <TableCell className="font-medium">{t.name}</TableCell>
                 <TableCell>{t.duration_days} дн.</TableCell>
-                <TableCell>{t.max_visits_per_day ?? 'Без ограничений'}</TableCell>
+                <TableCell>{t.max_visit_days != null ? `${t.max_visit_days} дн.` : 'Без ограничений'}</TableCell>
                 <TableCell className="text-sm">
                   <div>{scheduleLabel(t.schedule_days ?? 'all')}</div>
                   {t.time_from && t.time_to && (
@@ -204,10 +205,10 @@ export function Tariffs() {
 
               {/* Max visits */}
               <div className="space-y-2">
-                <Label>Макс. визитов в день (пусто = без ограничений)</Label>
+                <Label>Макс. дней посещений (пусто = без ограничений)</Label>
                 <Input
-                  type="number" min={1} value={form.max_visits_per_day ?? ''}
-                  onChange={(e) => setForm(f => ({ ...f, max_visits_per_day: e.target.value ? Number(e.target.value) : null }))}
+                  type="number" min={1} value={form.max_visit_days ?? ''}
+                  onChange={(e) => setForm(f => ({ ...f, max_visit_days: e.target.value ? Number(e.target.value) : null }))}
                   onFocus={(e) => e.target.select()}
                 />
               </div>
@@ -327,20 +328,25 @@ export function Tariffs() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <Dialog open={deleteId !== null} onClose={() => setDeleteId(null)}>
+      <Dialog open={deleteId !== null} onClose={() => { setDeleteId(null); deleteMutation.reset() }}>
         <div className="w-[360px]">
           <DialogHeader>
             <DialogTitle>Удалить тариф</DialogTitle>
           </DialogHeader>
           <DialogContent>
             <p className="text-muted-foreground">Вы уверены, что хотите удалить этот тариф? Это действие нельзя отменить.</p>
+            {deleteMutation.isError && (
+              <p className="text-sm text-destructive mt-2">
+                {(deleteMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Ошибка при удалении'}
+              </p>
+            )}
           </DialogContent>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)}>Отмена</Button>
+            <Button variant="outline" onClick={() => { setDeleteId(null); deleteMutation.reset() }}>Отмена</Button>
             <Button
               variant="destructive"
               onClick={() => deleteId !== null && deleteMutation.mutate(deleteId)}
-              disabled={deleteMutation.isPending}
+              disabled={deleteMutation.isPending || deleteMutation.isError}
             >
               Удалить
             </Button>

@@ -34,7 +34,7 @@ export interface ClientTariffDetail {
   created_at: string
   tariff_name: string
   duration_days: number
-  max_visits_per_day: number | null
+  max_visit_days: number | null
 }
 
 export interface CreateClientInput {
