@@ -82,7 +82,9 @@ func (s *SyncService) SyncClientToAllTerminals(ctx context.Context, clientID int
 	// No active tariff → expire on terminal (yesterday = no access)
 	endTime := time.Now().AddDate(0, 0, -1)
 	if ct, err := s.clientTariffRepo.GetActive(ctx, clientID); err == nil && ct != nil {
-		endTime = ct.EndDate
+		// Set to end of day so the terminal allows access the entire last day
+		d := ct.EndDate
+		endTime = time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, time.UTC)
 	}
 
 	terminals, err := s.terminalRepo.ListActive(ctx)
@@ -178,7 +180,8 @@ func (s *SyncService) SyncAllClientsToTerminal(ctx context.Context, terminalID i
 
 			endTime := time.Now().AddDate(0, 0, -1)
 			if ct, err := s.clientTariffRepo.GetActive(ctx2, cl.ID); err == nil && ct != nil {
-				endTime = ct.EndDate
+				d := ct.EndDate
+				endTime = time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, time.UTC)
 			}
 
 			if err := hik.UpsertPerson(cl.ID, cl.FullName, endTime); err != nil {

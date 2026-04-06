@@ -27,6 +27,16 @@ if %errorlevel% neq 0 (
 echo Backend built successfully.
 
 echo.
+echo [3/3] Adding firewall rule for port 8080...
+netsh advfirewall firewall delete rule name="GymCRM" >nul 2>&1
+netsh advfirewall firewall add rule name="GymCRM" dir=in action=allow protocol=TCP localport=8080 >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Firewall rule added.
+) else (
+    echo WARNING: Could not add firewall rule. Run build.bat as Administrator.
+)
+
+echo.
 echo ============================================
 echo  Build complete! You can now run start.bat
 echo ============================================

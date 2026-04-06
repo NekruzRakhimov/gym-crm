@@ -132,8 +132,10 @@ func (s *SchedulerService) actualizeClient(ctx context.Context, clientID int, no
 
 	var endTime time.Time
 	if IsAccessAllowed(tariff, now) {
-		// Within access window — set endTime to tariff's actual end date.
-		endTime = tariff.EndDate
+		// Within access window — set endTime to end of the last day so the
+		// terminal allows access the entire last day (not just until midnight).
+		d := tariff.EndDate
+		endTime = time.Date(d.Year(), d.Month(), d.Day(), 23, 59, 59, 0, time.UTC)
 	} else {
 		// Outside access window (wrong day/time) — expire immediately.
 		endTime = now.AddDate(0, 0, -1)

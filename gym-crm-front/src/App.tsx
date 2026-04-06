@@ -37,10 +37,20 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!sessionStorage.getItem('session_active')) {
+      setLoading(false)
+      return
+    }
     axios
       .post<{ access_token: string }>('/api/auth/refresh', {}, { withCredentials: true })
-      .then((res) => setAccessToken(res.data.access_token))
-      .catch(() => setAccessToken(null))
+      .then((res) => {
+        sessionStorage.setItem('session_active', '1')
+        setAccessToken(res.data.access_token)
+      })
+      .catch(() => {
+        sessionStorage.removeItem('session_active')
+        setAccessToken(null)
+      })
       .finally(() => setLoading(false))
   }, [setAccessToken])
 

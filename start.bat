@@ -9,7 +9,7 @@ start "GymCRM Backend" /d "%~dp0gym-crm-back" /min gym-crm.exe
 
 echo.
 echo Waiting for server to start...
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
 echo Opening browser...
 start http://localhost:8080
