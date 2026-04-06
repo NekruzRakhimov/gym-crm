@@ -130,6 +130,15 @@ func (s *ClientService) AssignTariff(ctx context.Context, clientID int, input mo
 	}
 
 	endDate := startDate.AddDate(0, 0, tariff.DurationDays-1)
+
+	overlap, err := s.clientTariffRepo.HasOverlap(ctx, clientID, startDate, endDate)
+	if err != nil {
+		return nil, fmt.Errorf("check overlap: %w", err)
+	}
+	if overlap {
+		return nil, fmt.Errorf("у клиента уже есть тариф на этот период")
+	}
+
 	ct, err := s.clientTariffRepo.Assign(ctx, clientID, input, endDate, tariff.Price)
 	if err != nil {
 		return nil, err

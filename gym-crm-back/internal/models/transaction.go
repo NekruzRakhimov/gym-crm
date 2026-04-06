@@ -35,3 +35,12 @@ type TariffRevenue struct {
 	Count      int     `db:"count" json:"count"`
 	Revenue    float64 `db:"revenue" json:"revenue"`
 }
+
+type TransactionRow struct {
+	CreatedAt   time.Time `db:"created_at"`
+	ClientName  string    `db:"client_name"`
+	Type        string    `db:"type"`
+	Amount      float64   `db:"amount"`
+	Description *string   `db:"description"`
+	TariffName  *string   `db:"tariff_name"`
+}

@@ -105,6 +105,7 @@ func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) 
 
 		// Finance (admin only)
 		api.GET("/finance/stats", middleware.RequireRole("admin"), ctrls.Finance.GetStats)
+		api.GET("/finance/export", middleware.RequireRole("admin"), ctrls.Finance.ExportExcel)
 
 		// User management (admin only)
 		users := api.Group("/users", middleware.RequireRole("admin"))

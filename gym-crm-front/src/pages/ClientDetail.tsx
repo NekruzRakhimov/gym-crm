@@ -214,7 +214,7 @@ export function ClientDetail() {
                 size="sm"
                 disabled={revokeMutation.isPending}
                 onClick={() => {
-                  if (window.confirm('Открепить тариф? Доступ будет закрыт на терминалах.')) {
+                  if (window.confirm('Открепить тариф? Доступ будет закрыт на терминалах. Деньги не возвращаются.')) {
                     revokeMutation.mutate(activeTariff.id)
                   }
                 }}
@@ -401,13 +401,24 @@ export function ClientDetail() {
                   required
                 />
               </div>
-              {assignForm.tariff_id > 0 && tariffs && (
-                <p className="text-sm text-muted-foreground">
-                  Будет списано: <span className="font-medium text-foreground">
-                    {(tariffs.find(t => t.id === assignForm.tariff_id)?.price ?? 0).toFixed(2)} сомони
-                  </span> с баланса клиента
-                </p>
-              )}
+              {assignForm.tariff_id > 0 && tariffs && (() => {
+                const t = tariffs.find(t => t.id === assignForm.tariff_id)
+                if (!t) return null
+                const start = assignForm.start_date ? new Date(assignForm.start_date) : null
+                const end = start ? new Date(start.getTime() + (t.duration_days - 1) * 86400000) : null
+                return (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    {start && end && (
+                      <p>Период: <span className="font-medium text-foreground">
+                        {start.toLocaleDateString('ru-RU')} — {end.toLocaleDateString('ru-RU')}
+                      </span></p>
+                    )}
+                    <p>Будет списано: <span className="font-medium text-foreground">
+                      {t.price.toFixed(2)} сомони
+                    </span> с баланса клиента</p>
+                  </div>
+                )
+              })()}
               {assignError && (
                 <p className="text-sm text-destructive">{assignError}</p>
               )}

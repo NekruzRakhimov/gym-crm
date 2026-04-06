@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { financeApi } from '../api/finance'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table'
 import { Spinner } from '../components/ui/spinner'
 import { Input } from '../components/ui/input'
 import { Button } from '../components/ui/button'
-import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 
 type QuickRange = 'this_month' | 'last_month' | 'last_3_months' | 'all'
 
@@ -46,6 +46,27 @@ export function Finance() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [activeQuick, setActiveQuick] = useState<QuickRange | null>(null)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const params = from || to ? { from: from || undefined, to: to || undefined } : undefined
+      const res = await financeApi.exportExcel(params)
+      const url = URL.createObjectURL(new Blob([res.data]))
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `finance_${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 100)
+    } catch {
+      alert('Ошибка при экспорте. Попробуйте ещё раз.')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const params = from || to ? { from: from || undefined, to: to || undefined } : undefined
 
@@ -85,7 +106,12 @@ export function Finance() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">Финансы</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Финансы</h1>
+        <Button onClick={handleExport} disabled={exporting} variant="outline" size="sm">
+          {exporting ? 'Экспорт...' : 'Экспорт Excel'}
+        </Button>
+      </div>
 
       {/* Filters */}
       <Card>

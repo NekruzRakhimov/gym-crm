@@ -14,6 +14,7 @@ type TransactionRepository interface {
 	Payment(ctx context.Context, clientID int, amount float64, description string, tariffRecordID int) (*models.Transaction, error)
 	ListByClient(ctx context.Context, clientID int) ([]models.Transaction, error)
 	GetFinanceStats(ctx context.Context, from, to string) (*models.FinanceStats, error)
+	ListTransactions(ctx context.Context, from, to string) ([]models.TransactionRow, error)
 }
 
 type transactionRepo struct{ db *sqlx.DB }
@@ -178,4 +179,40 @@ func (r *transactionRepo) GetFinanceStats(ctx context.Context, from, to string) 
 	}
 
 	return &stats, nil
+}
+
+func (r *transactionRepo) ListTransactions(ctx context.Context, from, to string) ([]models.TransactionRow, error) {
+	query := `
+		SELECT
+			tr.created_at,
+			c.full_name AS client_name,
+			tr.type,
+			tr.amount,
+			tr.description,
+			t.name AS tariff_name
+		FROM transactions tr
+		JOIN clients c ON c.id = tr.client_id
+		LEFT JOIN client_tariffs ct ON ct.id = tr.client_tariff_id
+		LEFT JOIN tariffs t ON t.id = ct.tariff_id
+		WHERE 1=1`
+
+	args := []interface{}{}
+	i := 1
+	if from != "" {
+		query += fmt.Sprintf(" AND tr.created_at >= $%d", i)
+		args = append(args, from)
+		i++
+	}
+	if to != "" {
+		query += fmt.Sprintf(" AND tr.created_at < ($%d::date + INTERVAL '1 day')", i)
+		args = append(args, to)
+		i++
+	}
+	query += " ORDER BY tr.created_at DESC"
+
+	var rows []models.TransactionRow
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return nil, fmt.Errorf("list transactions: %w", err)
+	}
+	return rows, nil
 }

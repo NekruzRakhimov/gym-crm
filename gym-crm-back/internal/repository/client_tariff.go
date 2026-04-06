@@ -13,9 +13,12 @@ import (
 
 type ClientTariffRepository interface {
 	Assign(ctx context.Context, clientID int, input models.AssignTariffInput, endDate time.Time, paidAmount float64) (*models.ClientTariff, error)
+	GetByID(ctx context.Context, clientID, tariffRecordID int) (*models.ClientTariff, error)
 	GetActive(ctx context.Context, clientID int) (*models.ClientTariffDetail, error)
 	ListByClient(ctx context.Context, clientID int) ([]models.ClientTariffDetail, error)
 	HasExpired(ctx context.Context, clientID int) (bool, error)
+	HasUpcoming(ctx context.Context, clientID int) (bool, error)
+	HasOverlap(ctx context.Context, clientID int, startDate, endDate time.Time) (bool, error)
 	Delete(ctx context.Context, clientID, tariffRecordID int) error
 }
 
@@ -39,6 +42,21 @@ func (r *clientTariffRepo) Assign(ctx context.Context, clientID int, input model
 	).StructScan(&ct)
 	if err != nil {
 		return nil, fmt.Errorf("assign tariff: %w", err)
+	}
+	return &ct, nil
+}
+
+func (r *clientTariffRepo) GetByID(ctx context.Context, clientID, tariffRecordID int) (*models.ClientTariff, error) {
+	var ct models.ClientTariff
+	err := r.db.QueryRowxContext(ctx,
+		`SELECT * FROM client_tariffs WHERE id=$1 AND client_id=$2`,
+		tariffRecordID, clientID,
+	).StructScan(&ct)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("get client tariff: %w", err)
 	}
 	return &ct, nil
 }
@@ -118,6 +136,33 @@ func (r *clientTariffRepo) HasExpired(ctx context.Context, clientID int) (bool, 
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check expired: %w", err)
+	}
+	return count > 0, nil
+}
+
+// HasOverlap returns true if the client already has a tariff overlapping [startDate, endDate].
+func (r *clientTariffRepo) HasOverlap(ctx context.Context, clientID int, startDate, endDate time.Time) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM client_tariffs
+		 WHERE client_id=$1 AND start_date <= $3 AND end_date >= $2`,
+		clientID, startDate, endDate,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check overlap: %w", err)
+	}
+	return count > 0, nil
+}
+
+// HasUpcoming returns true if the client has a tariff that starts in the future.
+func (r *clientTariffRepo) HasUpcoming(ctx context.Context, clientID int) (bool, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM client_tariffs WHERE client_id=$1 AND start_date > CURRENT_DATE",
+		clientID,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check upcoming: %w", err)
 	}
 	return count > 0, nil
 }

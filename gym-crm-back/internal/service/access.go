@@ -103,10 +103,11 @@ func (s *AccessService) ProcessEvent(
 		return nil, fmt.Errorf("get active tariff: %w", err)
 	}
 	if activeTariff == nil {
-		hasExpired, _ := s.clientTariffRepo.HasExpired(ctx, clientID)
 		reason := "no_tariff"
-		if hasExpired {
+		if hasExpired, _ := s.clientTariffRepo.HasExpired(ctx, clientID); hasExpired {
 			reason = "expired"
+		} else if hasUpcoming, _ := s.clientTariffRepo.HasUpcoming(ctx, clientID); hasUpcoming {
+			reason = "not_started"
 		}
 		return saveAndBroadcast(reason)
 	}
@@ -209,10 +210,11 @@ func (s *AccessService) Verify(
 		return false, "", fmt.Errorf("get active tariff: %w", err)
 	}
 	if activeTariff == nil {
-		hasExpired, _ := s.clientTariffRepo.HasExpired(ctx, clientID)
 		reason := "no_tariff"
-		if hasExpired {
+		if hasExpired, _ := s.clientTariffRepo.HasExpired(ctx, clientID); hasExpired {
 			reason = "expired"
+		} else if hasUpcoming, _ := s.clientTariffRepo.HasUpcoming(ctx, clientID); hasUpcoming {
+			reason = "not_started"
 		}
 		return save(false, reason)
 	}

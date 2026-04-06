@@ -11,4 +11,7 @@ export interface FinanceStats {
 export const financeApi = {
   getStats: (params?: { from?: string; to?: string }) =>
     api.get<FinanceStats>('/api/finance/stats', { params }),
+
+  exportExcel: (params?: { from?: string; to?: string }) =>
+    api.get('/api/finance/export', { params, responseType: 'blob' }),
 }
