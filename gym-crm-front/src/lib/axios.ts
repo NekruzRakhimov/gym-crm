@@ -57,7 +57,6 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (err) {
         processQueue(err, null)
-        sessionStorage.removeItem('session_active')
         useAuthStore.getState().logout()
         if (window.location.pathname !== '/login') {
           window.location.href = '/login'

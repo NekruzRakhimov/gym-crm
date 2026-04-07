@@ -9,7 +9,6 @@ export function useLogin() {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: (res) => {
-      sessionStorage.setItem('session_active', '1')
       setAccessToken(res.data.access_token)
       navigate('/')
     },
@@ -25,7 +24,6 @@ export function useLogout() {
     } catch {
       // ignore
     }
-    sessionStorage.removeItem('session_active')
     logout()
     navigate('/login')
   }

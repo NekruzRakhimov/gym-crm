@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import axios from 'axios'
 import { useAuthStore } from './store/auth'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
@@ -12,7 +10,6 @@ import { Events } from './pages/Events'
 import { Terminals } from './pages/Terminals'
 import { Finance } from './pages/Finance'
 import { Users as UsersPage } from './pages/Users'
-import { Spinner } from './components/ui/spinner'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -34,33 +31,6 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const setAccessToken = useAuthStore((s) => s.setAccessToken)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!sessionStorage.getItem('session_active')) {
-      setLoading(false)
-      return
-    }
-    axios
-      .post<{ access_token: string }>('/api/auth/refresh', {}, { withCredentials: true })
-      .then((res) => {
-        sessionStorage.setItem('session_active', '1')
-        setAccessToken(res.data.access_token)
-      })
-      .catch(() => {
-        sessionStorage.removeItem('session_active')
-        setAccessToken(null)
-      })
-      .finally(() => setLoading(false))
-  }, [setAccessToken])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner />
-      </div>
-    )
-  }
 
   return (
     <BrowserRouter>

@@ -73,8 +73,15 @@ func main() {
 	r := router.Setup(authSvc, ctrls, cfg.FrontendDir)
 
 	addr := fmt.Sprintf(":%d", cfg.ServerPort)
-	log.Printf("starting server on %s", addr)
-	if err := r.Run(addr); err != nil {
-		log.Fatalf("server: %v", err)
+	if cfg.TLSCert != "" && cfg.TLSKey != "" {
+		log.Printf("starting HTTPS server on %s", addr)
+		if err := r.RunTLS(addr, cfg.TLSCert, cfg.TLSKey); err != nil {
+			log.Fatalf("server: %v", err)
+		}
+	} else {
+		log.Printf("starting HTTP server on %s", addr)
+		if err := r.Run(addr); err != nil {
+			log.Fatalf("server: %v", err)
+		}
 	}
 }

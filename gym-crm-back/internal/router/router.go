@@ -28,13 +28,15 @@ type Controllers struct {
 func Setup(authSvc *service.AuthService, ctrls Controllers, frontendDir string) *gin.Engine {
 	r := gin.Default()
 
-	// CORS — allow localhost on any port (dev Vite + prod Go server)
+	// CORS — allow localhost and local network (192.168.x.x)
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			return strings.HasPrefix(origin, "http://localhost") ||
 				strings.HasPrefix(origin, "https://localhost") ||
 				strings.HasPrefix(origin, "http://127.0.0.1") ||
-				strings.HasPrefix(origin, "https://127.0.0.1")
+				strings.HasPrefix(origin, "https://127.0.0.1") ||
+				strings.HasPrefix(origin, "http://192.168.") ||
+				strings.HasPrefix(origin, "https://192.168.")
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},

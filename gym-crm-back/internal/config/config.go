@@ -18,6 +18,8 @@ type Config struct {
 	AdminPassword    string
 	UploadsDir       string
 	FrontendDir      string
+	TLSCert          string
+	TLSKey           string
 }
 
 func Load() *Config {
@@ -40,6 +42,8 @@ func Load() *Config {
 		AdminPassword:    getEnv("ADMIN_PASSWORD", "admin"),
 		UploadsDir:       getEnv("UPLOADS_DIR", "./uploads"),
 		FrontendDir:      getEnv("FRONTEND_DIR", "../gym-crm-front/dist"),
+		TLSCert:          getEnv("TLS_CERT", ""),
+		TLSKey:           getEnv("TLS_KEY", ""),
 	}
 }
 

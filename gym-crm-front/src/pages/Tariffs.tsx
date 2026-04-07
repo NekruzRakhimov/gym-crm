@@ -39,7 +39,7 @@ function scheduleLabel(s: string): string {
 }
 
 const emptyForm: CreateTariffInput = {
-  name: '', duration_days: 30, max_visit_days: null, price: 0,
+  name: '', duration_days: 0, max_visit_days: null, price: 0,
   schedule_days: 'all', time_from: null, time_to: null,
 }
 
@@ -196,9 +196,10 @@ export function Tariffs() {
               <div className="space-y-2">
                 <Label>Длительность (дней) *</Label>
                 <Input
-                  type="number" min={1} value={form.duration_days}
+                  type="number" min={1} value={form.duration_days || ''}
                   onChange={(e) => setForm(f => ({ ...f, duration_days: Number(e.target.value) }))}
                   onFocus={(e) => e.target.select()}
+                  placeholder="Например: 30"
                   required
                 />
               </div>

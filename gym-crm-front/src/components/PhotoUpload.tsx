@@ -43,6 +43,12 @@ export function PhotoUpload({ photoPath, onUpload, size = 80, previewSrc }: Prop
   const startCamera = useCallback(async () => {
     setCameraError(null)
     setMode('camera')
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError(
+        'Камера недоступна. Сайт должен быть открыт по HTTPS или на localhost.'
+      )
+      return
+    }
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -97,9 +103,28 @@ export function PhotoUpload({ photoPath, onUpload, size = 80, previewSrc }: Prop
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    onUpload(file)
     e.target.value = ''
-    close()
+
+    // Convert any image (PNG, WebP, etc.) to JPEG via canvas, then show preview
+    const img = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d')!.drawImage(img, 0, 0)
+      URL.revokeObjectURL(objectUrl)
+      canvas.toBlob((blob) => {
+        if (!blob) return
+        const jpegFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' })
+        const previewUrl = URL.createObjectURL(blob)
+        setCapturedFile(jpegFile)
+        setPreviewUrl(previewUrl)
+        setMode('preview')
+      }, 'image/jpeg', 0.92)
+    }
+    img.src = objectUrl
   }
 
   return (

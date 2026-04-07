@@ -71,9 +71,14 @@ export function ClientDetail() {
     enabled: showAssign,
   })
 
+  const [photoError, setPhotoError] = useState<string | null>(null)
   const photoMutation = useMutation({
     mutationFn: (file: File) => clientsApi.uploadPhoto(clientId, file),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['client', clientId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['client', clientId] })
+      setPhotoError(null)
+    },
+    onError: () => setPhotoError('Не удалось загрузить фото. Попробуйте ещё раз.'),
   })
 
   const blockMutation = useMutation({
@@ -136,11 +141,15 @@ export function ClientDetail() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-start gap-6">
-            <PhotoUpload
-              photoPath={client.photo_path}
-              onUpload={(file) => photoMutation.mutate(file)}
-              size={96}
-            />
+            <div className="flex flex-col items-center gap-1">
+              <PhotoUpload
+                photoPath={client.photo_path}
+                onUpload={(file) => photoMutation.mutate(file)}
+                size={96}
+              />
+              {photoMutation.isPending && <span className="text-xs text-muted-foreground">Загрузка...</span>}
+              {photoError && <span className="text-xs text-destructive">{photoError}</span>}
+            </div>
             <div className="flex-1">
               <div className="flex items-start justify-between">
                 <div>
@@ -194,21 +203,8 @@ export function ClientDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle>Активный тариф</CardTitle>
-          <Button size="sm" onClick={() => setShowAssign(true)}>Назначить тариф</Button>
-        </CardHeader>
-        <CardContent>
-          {activeTariff ? (
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <div className="font-semibold text-lg">{activeTariff.tariff_name}</div>
-                <div className="text-sm text-muted-foreground">
-                  {format(new Date(activeTariff.start_date), 'dd MMM yyyy')} —{' '}
-                  {format(new Date(activeTariff.end_date), 'dd MMM yyyy')}
-                </div>
-                <div className="text-sm">
-                  Дней посещений: {activeTariff.max_visit_days != null ? `${activeTariff.max_visit_days} дн.` : 'Без ограничений'}
-                </div>
-              </div>
+          <div className="flex items-center gap-2">
+            {activeTariff && (
               <Button
                 variant="destructive"
                 size="sm"
@@ -221,6 +217,21 @@ export function ClientDetail() {
               >
                 Открепить
               </Button>
+            )}
+            <Button size="sm" onClick={() => setShowAssign(true)}>Назначить тариф</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {activeTariff ? (
+            <div className="space-y-1">
+              <div className="font-semibold text-lg">{activeTariff.tariff_name}</div>
+              <div className="text-sm text-muted-foreground">
+                {format(new Date(activeTariff.start_date), 'dd MMM yyyy')} —{' '}
+                {format(new Date(activeTariff.end_date), 'dd MMM yyyy')}
+              </div>
+              <div className="text-sm">
+                Дней посещений: {activeTariff.max_visit_days != null ? `${activeTariff.max_visit_days} дн.` : 'Без ограничений'}
+              </div>
             </div>
           ) : (
             <p className="text-muted-foreground">Нет активного тарифа</p>
@@ -286,6 +297,7 @@ export function ClientDetail() {
                 <TableHead>Период</TableHead>
                 <TableHead>Сумма</TableHead>
                 <TableHead>Примечание</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -298,6 +310,21 @@ export function ClientDetail() {
                   </TableCell>
                   <TableCell>{p.paid_amount != null ? `${p.paid_amount}` : '—'}</TableCell>
                   <TableCell>{p.payment_note ?? '—'}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive"
+                      disabled={revokeMutation.isPending}
+                      onClick={() => {
+                        if (window.confirm('Открепить тариф? Доступ будет закрыт на терминалах. Деньги не возвращаются.')) {
+                          revokeMutation.mutate(p.id)
+                        }
+                      }}
+                    >
+                      Открепить
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
