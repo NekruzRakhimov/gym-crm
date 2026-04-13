@@ -3,10 +3,14 @@ import { useAuthStore } from '../store/auth'
 
 export type WSStatus = 'connecting' | 'connected' | 'disconnected'
 
+const MIN_RECONNECT_MS = 3_000
+const MAX_RECONNECT_MS = 30_000
+
 export function useWebSocket(onMessage: (data: unknown) => void): WSStatus {
   const accessToken = useAuthStore((s) => s.accessToken)
   const ws = useRef<WebSocket | null>(null)
   const reconnectTimeout = useRef<number>()
+  const reconnectDelay = useRef(MIN_RECONNECT_MS)
   const onMessageRef = useRef(onMessage)
   const [status, setStatus] = useState<WSStatus>('disconnected')
   onMessageRef.current = onMessage
@@ -27,6 +31,7 @@ export function useWebSocket(onMessage: (data: unknown) => void): WSStatus {
 
     socket.onopen = () => {
       setStatus('connected')
+      reconnectDelay.current = MIN_RECONNECT_MS  // reset backoff on success
     }
     socket.onmessage = (e) => {
       try {
@@ -37,7 +42,10 @@ export function useWebSocket(onMessage: (data: unknown) => void): WSStatus {
     }
     socket.onclose = () => {
       setStatus('disconnected')
-      reconnectTimeout.current = window.setTimeout(connect, 3000)
+      // Exponential backoff: 3s → 4.5s → 6.75s → … → 30s max.
+      // Prevents hammering a recovering backend with constant reconnects.
+      reconnectTimeout.current = window.setTimeout(connect, reconnectDelay.current)
+      reconnectDelay.current = Math.min(reconnectDelay.current * 1.5, MAX_RECONNECT_MS)
     }
     socket.onerror = () => {
       socket.close()

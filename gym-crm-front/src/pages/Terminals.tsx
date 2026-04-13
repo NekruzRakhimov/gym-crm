@@ -13,18 +13,36 @@ import { Plus, RefreshCw, DoorOpen, Wifi, ShieldCheck, Pencil, Trash2 } from 'lu
 const emptyForm: CreateTerminalInput = { name: '', ip: '', port: 80, username: 'admin', password: '', direction: 'entry' }
 
 function TerminalStatus({ terminalId }: { terminalId: number }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['terminal-status', terminalId],
     queryFn: () => terminalsApi.getStatus(terminalId).then((r) => r.data),
     refetchInterval: 30_000,
+    // Keep data fresh for 25 s so a browser tab refocus does not trigger an
+    // extra ping burst right before the scheduled 30 s interval fires.
+    staleTime: 25_000,
+    // One retry is enough — the backend already applies hysteresis. Three
+    // retries (default) just delay the UI update and add backend load.
+    retry: 1,
   })
 
   if (isLoading) return <Spinner className="w-4 h-4" />
 
+  // Distinguish "backend unreachable" (yellow) from "terminal offline" (red)
+  // so an operator knows whether the problem is their laptop or the terminal.
+  if (isError) {
+    return (
+      <div className="flex items-center gap-1.5 text-sm text-yellow-600">
+        <div className="w-2 h-2 rounded-full bg-yellow-400" />
+        Нет данных
+      </div>
+    )
+  }
+
+  const online = data?.online ?? false
   return (
-    <div className={`flex items-center gap-1.5 text-sm ${data?.online ? 'text-green-600' : 'text-red-500'}`}>
-      <div className={`w-2 h-2 rounded-full ${data?.online ? 'bg-green-500' : 'bg-red-500'}`} />
-      {data?.online ? 'Онлайн' : 'Офлайн'}
+    <div className={`flex items-center gap-1.5 text-sm ${online ? 'text-green-600' : 'text-red-500'}`}>
+      <div className={`w-2 h-2 rounded-full ${online ? 'bg-green-500' : 'bg-red-500'}`} />
+      {online ? 'Онлайн' : 'Офлайн'}
     </div>
   )
 }

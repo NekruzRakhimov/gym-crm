@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"sync"
@@ -49,9 +50,14 @@ func NewHub() *Hub {
 	}
 }
 
-func (h *Hub) Run() {
+// Run processes hub events until ctx is cancelled.
+// Pass the application-level context so the goroutine exits cleanly on
+// graceful shutdown instead of leaking forever.
+func (h *Hub) Run(ctx context.Context) {
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case client := <-h.register:
 			h.mu.Lock()
 			h.clients[client] = true
@@ -81,7 +87,14 @@ func (h *Hub) Run() {
 }
 
 func (h *Hub) Broadcast(data []byte) {
-	h.broadcast <- data
+	select {
+	case h.broadcast <- data:
+	default:
+		// Channel is full — drop the event rather than blocking the caller.
+		// This prevents webhook handlers (including the real-time Verify path)
+		// from being delayed when no WS clients are connected or they are slow.
+		log.Printf("ws hub: broadcast channel full, dropping event")
+	}
 }
 
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/gym-crm/gym-crm-back/internal/config"
 	"github.com/gym-crm/gym-crm-back/internal/controller"
@@ -33,6 +36,11 @@ func main() {
 		log.Fatalf("seed admin: %v", err)
 	}
 
+	// Application-level context: cancelled on SIGINT/SIGTERM so background
+	// goroutines (hub, scheduler) exit cleanly instead of leaking.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	// Repositories
 	adminRepo := repository.NewAdminRepository(database)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(database)
@@ -45,13 +53,13 @@ func main() {
 	// Services
 	authSvc := service.NewAuthService(adminRepo, refreshTokenRepo, cfg.JWTAccessSecret, cfg.JWTRefreshSecret)
 	hub := service.NewHub()
-	go hub.Run()
+	go hub.Run(ctx)
 
 	transactionRepo := repository.NewTransactionRepository(database)
 
 	syncSvc := service.NewSyncService(terminalRepo, clientRepo, clientTariffRepo, cfg.UploadsDir)
 	schedulerSvc := service.NewSchedulerService(clientRepo, clientTariffRepo, syncSvc)
-	go schedulerSvc.Run(context.Background())
+	go schedulerSvc.Run(ctx)
 	tariffSvc := service.NewTariffService(tariffRepo)
 	clientSvc := service.NewClientService(clientRepo, clientTariffRepo, tariffRepo, transactionRepo, syncSvc, cfg.UploadsDir)
 	accessSvc := service.NewAccessService(terminalRepo, clientRepo, clientTariffRepo, eventRepo, hub)
